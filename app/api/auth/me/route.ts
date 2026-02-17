@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { verifySessionToken } from '@/lib/auth';
-import { getUserById } from '@/lib/db/queries';
+import { NextRequest, NextResponse } from "next/server";
+import { verifySessionToken } from "@/lib/auth";
+import { getUserById } from "@/db/queries";
 
 export async function GET(request: NextRequest) {
   try {
-    const authToken = request.cookies.get('auth_token')?.value;
-    const userId = request.cookies.get('user_id')?.value;
+    const authToken = request.cookies.get("auth_token")?.value;
+    const userId = request.cookies.get("user_id")?.value;
 
     if (!authToken || !userId) {
       return NextResponse.json({ authenticated: false, user: null });
@@ -36,7 +36,10 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('[AUTH] Me endpoint error:', error);
-    return NextResponse.json({ authenticated: false, user: null }, { status: 500 });
+    console.error("[AUTH] Me endpoint error:", error);
+    return NextResponse.json(
+      { authenticated: false, user: null },
+      { status: 500 },
+    );
   }
 }

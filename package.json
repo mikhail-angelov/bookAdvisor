@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:server": "tsx server.ts",
+    "dev": "tsx server.ts",
     "build": "next build",
-    "db:migrate": "tsx -e \"import { initDatabase } from './lib/db/index'; import { runMigrations } from './lib/db/migrate'; (async () => { await initDatabase('prod'); await runMigrations(); })();\"",
+    "migrate:run": "drizzle-kit migrate",
+    "migrate:generate": "drizzle-kit generate",
     "start": "next start",
     "start:server": "tsx server.ts",
     "test": "jest"

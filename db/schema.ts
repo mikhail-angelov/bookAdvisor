@@ -66,6 +66,44 @@ export const crawlHistory = sqliteTable('crawl_history', {
   createdAt: text('created_at').notNull(),
 });
 
+/**
+ * Users table
+ */
+export const users = sqliteTable('users', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull(),
+  email: text('email'),
+  createdAt: text('created_at').notNull(),
+});
+
+/**
+ * Crawl table - raw crawled pages
+ */
+export const crawl = sqliteTable('crawl', {
+  id: text('id').primaryKey(),
+  url: text('url').notNull(),
+  time: text('time').notNull(),
+  codePage: text('code_page'),
+  htmlBody: text('html_body'),
+  createdAt: text('created_at').notNull(),
+});
+
+/**
+ * User annotations table
+ */
+export const userAnnotation = sqliteTable('user_annotation', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull(),
+  torrentId: text('torrent_id'),
+  rating: integer('rating'),
+  annotation: text('annotation'),
+  readStatus: text('read_status').default('unread'),
+  startedAt: text('started_at'),
+  completedAt: text('completed_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at'),
+});
+
 // Type exports for TypeScript
 export type Torrent = typeof torrents.$inferSelect;
 export type NewTorrent = typeof torrents.$inferInsert;
@@ -73,3 +111,10 @@ export type TorrentDetail = typeof torrentDetails.$inferSelect;
 export type NewTorrentDetail = typeof torrentDetails.$inferInsert;
 export type CrawlHistory = typeof crawlHistory.$inferSelect;
 export type NewCrawlHistory = typeof crawlHistory.$inferInsert;
+
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
+export type CrawlRecord = typeof crawl.$inferSelect;
+export type NewCrawlRecord = typeof crawl.$inferInsert;
+export type UserAnnotation = typeof userAnnotation.$inferSelect;
+export type NewUserAnnotation = typeof userAnnotation.$inferInsert;

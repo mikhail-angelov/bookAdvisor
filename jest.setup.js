@@ -6,8 +6,8 @@ const originalConsoleError = console.error;
 const originalConsoleLog = console.log;
 
 beforeAll(() => {
-  console.error = jest.fn();
-  console.log = jest.fn();
+  // console.error = jest.fn();
+  // console.log = jest.fn();
 });
 
 afterAll(() => {

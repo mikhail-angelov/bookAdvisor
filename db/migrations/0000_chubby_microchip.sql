@@ -1,3 +1,12 @@
+CREATE TABLE `crawl` (
+	`id` text PRIMARY KEY NOT NULL,
+	`url` text NOT NULL,
+	`time` text NOT NULL,
+	`code_page` text,
+	`html_body` text,
+	`created_at` text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `crawl_history` (
 	`id` text PRIMARY KEY NOT NULL,
 	`forum_id` integer NOT NULL,
@@ -55,4 +64,23 @@ CREATE TABLE `torrents` (
 	`status` text DEFAULT 'active'
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `torrents_topic_id_unique` ON `torrents` (`topic_id`);
+CREATE UNIQUE INDEX `torrents_topic_id_unique` ON `torrents` (`topic_id`);--> statement-breakpoint
+CREATE TABLE `user_annotation` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`torrent_id` text,
+	`rating` integer,
+	`annotation` text,
+	`read_status` text DEFAULT 'unread',
+	`started_at` text,
+	`completed_at` text,
+	`created_at` text NOT NULL,
+	`updated_at` text
+);
+--> statement-breakpoint
+CREATE TABLE `users` (
+	`id` text PRIMARY KEY NOT NULL,
+	`username` text NOT NULL,
+	`email` text,
+	`created_at` text NOT NULL
+);

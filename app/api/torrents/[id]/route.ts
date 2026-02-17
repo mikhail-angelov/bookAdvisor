@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getTorrentById, getTorrentDetailsByTorrentId } from '@/lib/db/queries';
+import { NextRequest, NextResponse } from "next/server";
+import { getTorrentById, getTorrentDetailsByTorrentId } from "@/db/queries";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const torrent = await getTorrentById(params.id);
 
     if (!torrent) {
-      return NextResponse.json({ error: 'Torrent not found' }, { status: 404 });
+      return NextResponse.json({ error: "Torrent not found" }, { status: 404 });
     }
 
     const details = await getTorrentDetailsByTorrentId(params.id);
