@@ -1,5 +1,5 @@
 import { getDb, getDbAsync, torrents, torrentDetails, crawlHistory, users, crawl, userAnnotation } from "./index";
-import { eq, like, desc, asc, sql, and } from "drizzle-orm";
+import { eq, like, desc, asc, sql, and, or } from "drizzle-orm";
 import type {
   Torrent,
   NewTorrent,
@@ -317,6 +317,7 @@ export async function insertTorrentDetails(
       lastChecked: details.lastChecked ?? null,
       magnetLink: details.magnetLink ?? null,
       torrentFile: details.torrentFile ?? null,
+      size: details.size ?? null,
       createdAt: details.createdAt ?? null,
       authorName: details.authorName ?? null,
       authorPosts: details.authorPosts ?? null,
@@ -345,6 +346,7 @@ export async function insertTorrentDetails(
         lastChecked: details.lastChecked ?? null,
         magnetLink: details.magnetLink ?? null,
         torrentFile: details.torrentFile ?? null,
+        size: details.size ?? null,
         createdAt: details.createdAt ?? null,
         authorName: details.authorName ?? null,
         authorPosts: details.authorPosts ?? null,
@@ -492,6 +494,32 @@ export async function getCrawlRecordsByForumId(
     .select()
     .from(crawl)
     .where(like(crawl.url, `%${urlPattern}%`))
+    .orderBy(desc(crawl.time));
+
+  return result;
+}
+
+/**
+ * Get crawl records for reparse - includes both forum pages for a given forum and all topic pages
+ */
+export async function getCrawlRecordsForReparse(
+  forumId: number,
+): Promise<CrawlRecord[]> {
+  const db = await getDbAsync();
+  if (!db) return [];
+
+  // URL pattern for forum pages of this forum
+  const forumUrlPattern = `viewforum.php?f=${forumId}`;
+  // URL pattern for topic pages (any forum)
+  const topicUrlPattern = `viewtopic.php`;
+  
+  const result = await db
+    .select()
+    .from(crawl)
+    .where(or(
+      like(crawl.url, `%${forumUrlPattern}%`),
+      like(crawl.url, `%${topicUrlPattern}%`)
+    ))
     .orderBy(desc(crawl.time));
 
   return result;

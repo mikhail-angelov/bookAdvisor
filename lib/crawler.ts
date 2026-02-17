@@ -10,8 +10,10 @@ import {
   bulkUpsertTorrents,
   bulkCheckTopicIds,
   insertCrawlRecord,
+  insertTorrentDetails,
 } from "@/db/queries";
 import { ParserFactory, TorrentData } from "./parsers";
+import { DetailsParserFactory } from "./details-parser";
 
 // Re-export TorrentData type for external use
 export type { TorrentData } from "./parsers";
@@ -20,6 +22,7 @@ const RUTRACKER_BASE_URL = "https://rutracker.org/forum";
 
 // Default parser instance
 const defaultParser = ParserFactory.getDefaultParser();
+const defaultDetailsParser = DetailsParserFactory.getDefaultParser();
 
 // Emit status update via socket.io if available
 function emitStatusUpdate() {
@@ -56,6 +59,22 @@ export interface TorrentDetailsData {
   seeders: number;
   magnetLink: string;
   torrentFile: string;
+  authorName: string;
+  authorPosts: number;
+  topicTitle: string;
+  year: number | null;
+  authorFirstName: string;
+  authorLastName: string;
+  performer: string;
+  series: string;
+  bookNumber: string;
+  genre: string;
+  editionType: string;
+  audioCodec: string;
+  bitrate: string;
+  duration: string;
+  size?: string;
+  author?: string;
 }
 
 function parseNumber(numStr: string): number {
@@ -134,6 +153,7 @@ export async function crawlTopicDetails(
   topicId: string,
 ): Promise<TorrentDetailsData | null> {
   const url = `${RUTRACKER_BASE_URL}/viewtopic.php?t=${topicId}`;
+  const crawlTime = new Date().toISOString();
 
   try {
     // Request as arraybuffer to handle encoding properly
@@ -155,53 +175,128 @@ export async function crawlTopicDetails(
     const charsetMatch = contentType.match(/charset=([^\s;]+)/i);
     if (charsetMatch) {
       encoding = charsetMatch[1].toLowerCase();
+      // Normalize encoding names for iconv-lite
+      if (encoding === "windows-1251") {
+        encoding = "win1251";
+      }
     }
 
     // Decode the response using iconv-lite
     const htmlBuffer = response.data;
     const html = iconv.decode(htmlBuffer, encoding);
 
-    const $ = cheerio.load(html);
+    // Save crawl record to database
+    try {
+      await insertCrawlRecord({
+        id: uuidv4(),
+        url,
+        time: crawlTime,
+        codePage: encoding,
+        htmlBody: html,
+      });
+      console.log(`[CRAWL] Saved crawl record for ${url}`);
+    } catch (dbError) {
+      console.error(`[CRAWL] Failed to save crawl record:`, dbError);
+    }
 
-    // Get description from post
-    const description = $(".post_body")
-      .first()
-      .text()
-      .trim()
-      .substring(0, 5000);
+    // Use the details parser to extract torrent details from HTML
+    const details = defaultDetailsParser.parse(html, topicId);
 
-    // Get category
-    const category = $(".nav a").last().text().trim();
-
-    // Get forum name
-    const forumName = $(".nav a").eq(-2).text().trim();
-
-    // Get registered until
-    const registeredUntil = $(".reg-details span").text().trim() || "";
-
-    // Get seeders from the torrent details
-    const seeders = parseNumber($(".seeders").text().trim());
-
-    // Get magnet link
-    const magnetLink = $(".magnet a").attr("href") || "";
-
-    // Get torrent file link
-    const torrentFile = $(".download a").attr("href") || "";
-
-    return {
-      url,
-      description,
-      category,
-      forumName,
-      registeredUntil,
-      seeders,
-      magnetLink,
-      torrentFile,
-    };
+    return details;
   } catch (error) {
     console.error(`Error crawling topic details for ${topicId}:`, error);
     return null;
   }
+}
+
+
+/**
+ * Crawl torrent details page and store results in database
+ */
+export async function crawlAndStoreTopicDetails(topicId: string): Promise<boolean> {
+  const details = await crawlTopicDetails(topicId);
+  if (!details) {
+    return false;
+  }
+
+  try {
+    // Map parsed details to database schema
+    const now = new Date().toISOString();
+    await insertTorrentDetails({
+      id: topicId, // Use topicId as primary key for upsert
+      torrentId: topicId,
+      url: details.url,
+      description: details.description,
+      category: details.category,
+      forumName: details.forumName,
+      registeredUntil: details.registeredUntil,
+      seeders: details.seeders,
+      lastChecked: now,
+      magnetLink: details.magnetLink,
+      torrentFile: details.torrentFile,
+      size: details.size ?? null,
+      createdAt: now,
+      authorName: details.authorName,
+      authorPosts: details.authorPosts,
+      topicTitle: details.topicTitle,
+      year: details.year,
+      authorFirstName: details.authorFirstName,
+      authorLastName: details.authorLastName,
+      performer: details.performer,
+      series: details.series,
+      bookNumber: details.bookNumber,
+      genre: details.genre,
+      editionType: details.editionType,
+      audioCodec: details.audioCodec,
+      bitrate: details.bitrate,
+      duration: details.duration,
+    });
+    console.log(`[DETAILS] Stored details for topic ${topicId}`);
+    return true;
+  } catch (error) {
+    console.error(`Failed to store details for topic ${topicId}:`, error);
+    return false;
+  }
+}
+
+/**
+ * Crawl details for multiple torrents with concurrency limit
+ */
+export async function crawlDetailsBatch(
+  topicIds: string[],
+  concurrency: number = 3,
+  delayBetweenRequests: number = 2000
+): Promise<{ success: number; failed: number }> {
+  let success = 0;
+  let failed = 0;
+  const queue = [...topicIds];
+  
+  async function processQueue() {
+    while (queue.length > 0) {
+      const topicId = queue.shift();
+      if (!topicId) continue;
+      
+      try {
+        const ok = await crawlAndStoreTopicDetails(topicId);
+        if (ok) success++;
+        else failed++;
+      } catch (error) {
+        console.error(`Error processing topic ${topicId}:`, error);
+        failed++;
+      }
+      
+      // Rate limiting between requests
+      if (queue.length > 0) {
+        await delay(delayBetweenRequests + Math.random() * 1000);
+      }
+    }
+  }
+  
+  // Start workers up to concurrency limit
+  const workers = Array(Math.min(concurrency, topicIds.length)).fill(0).map(processQueue);
+  await Promise.all(workers);
+  
+  return { success, failed };
 }
 
 export async function startCrawl(
@@ -332,6 +427,13 @@ export async function startCrawl(
         });
 
         emitStatusUpdate();
+
+        // Crawl details for torrents on this page
+        const topicIds = torrents.map(t => t.topicId);
+        console.log(`[CRAWL:${crawlId}] Crawling details for ${topicIds.length} torrents...`);
+        const detailsResult = await crawlDetailsBatch(topicIds, 3, 2000);
+        console.log(`[CRAWL:${crawlId}] Details crawl completed: ${detailsResult.success} succeeded, ${detailsResult.failed} failed`);
+
       } catch (pageError: any) {
         const errorMsg = pageError.message || "Unknown error";
         const isTimeout =
@@ -431,12 +533,13 @@ export async function reparseCrawlData(forumId: number): Promise<{
   }
 
   // Import here to avoid circular dependencies
-  const { getCrawlRecordsByForumId, bulkUpsertTorrents } = await import('@/db/queries');
+  const { getCrawlRecordsForReparse, bulkUpsertTorrents, insertTorrentDetails } = await import('@/db/queries');
   const { ParserFactory } = await import('./parsers');
+  const { DetailsParserFactory } = await import('./details-parser');
   const { v4: uuidv4 } = await import('uuid');
 
-  // Get all crawl records for this forum
-  const crawlRecords = await getCrawlRecordsByForumId(forumId);
+  // Get all crawl records for this forum (including topic pages)
+  const crawlRecords = await getCrawlRecordsForReparse(forumId);
   
   if (crawlRecords.length === 0) {
     console.log(`[REPARSE] No crawl records found for forum ${forumId}`);
@@ -449,61 +552,116 @@ export async function reparseCrawlData(forumId: number): Promise<{
 
   console.log(`[REPARSE] Found ${crawlRecords.length} crawl records for forum ${forumId}`);
 
-  // Use the default parser
+  // Use the default parsers
   const parser = ParserFactory.getDefaultParser();
+  const detailsParser = DetailsParserFactory.getDefaultParser();
   let totalTorrentsProcessed = 0;
   let totalTorrentsUpdated = 0;
+  let totalDetailsProcessed = 0;
+  let totalDetailsUpdated = 0;
 
   // Process each crawl record
   for (const record of crawlRecords) {
+    console.log(`[REPARSE] Processing record ${record.id}, URL: ${record.url}`);
     if (!record.htmlBody) {
       console.log(`[REPARSE] Skipping record ${record.id} - no HTML content`);
       continue;
     }
 
+    // Determine if this is a forum page or topic page
+    const isTopicPage = record.url.includes('viewtopic.php');
+    console.log(`[REPARSE] isTopicPage: ${isTopicPage}`);
+
     try {
-      // Parse the HTML
-      const torrents = parser.parse(record.htmlBody, forumId);
-      
-      if (torrents.length === 0) {
-        console.log(`[REPARSE] No torrents parsed from record ${record.id}`);
-        continue;
+      if (isTopicPage) {
+        // Parse topic page with details parser
+        const topicIdMatch = record.url.match(/t=(\d+)/);
+        if (!topicIdMatch) {
+          console.log(`[REPARSE] Skipping topic page ${record.id} - no topic ID in URL`);
+          continue;
+        }
+        const topicId = topicIdMatch[1];
+        const details = detailsParser.parse(record.htmlBody, topicId);
+        console.log(`[REPARSE] Parsed details for topic ${topicId}, size: ${details.size}`);
+        
+        // Map parsed details to database schema
+        const now = new Date().toISOString();
+        await insertTorrentDetails({
+          id: topicId,
+          torrentId: topicId,
+          url: details.url,
+          description: details.description,
+          category: details.category,
+          forumName: details.forumName,
+          registeredUntil: details.registeredUntil,
+          seeders: details.seeders,
+          lastChecked: now,
+          magnetLink: details.magnetLink,
+          torrentFile: details.torrentFile,
+          size: details.size ?? null,
+          createdAt: now,
+          authorName: details.authorName,
+          authorPosts: details.authorPosts,
+          topicTitle: details.topicTitle,
+          year: details.year,
+          authorFirstName: details.authorFirstName,
+          authorLastName: details.authorLastName,
+          performer: details.performer,
+          series: details.series,
+          bookNumber: details.bookNumber,
+          genre: details.genre,
+          editionType: details.editionType,
+          audioCodec: details.audioCodec,
+          bitrate: details.bitrate,
+          duration: details.duration,
+        });
+        totalDetailsProcessed++;
+        totalDetailsUpdated++; // insert or update counts as updated
+        console.log(`[REPARSE] Record ${record.id}: topic details parsed and stored`);
+      } else {
+        // Parse forum page with list parser
+        const torrents = parser.parse(record.htmlBody, forumId);
+        
+        if (torrents.length === 0) {
+          console.log(`[REPARSE] No torrents parsed from record ${record.id}`);
+          continue;
+        }
+
+        // Prepare torrent data for bulk upsert
+        const nowStr = new Date().toISOString();
+        const torrentData = torrents.map((torrent) => ({
+          id: uuidv4(),
+          topicId: torrent.topicId,
+          url: torrent.url,
+          title: torrent.title,
+          forumId: torrent.forumId,
+          size: torrent.size,
+          seeds: torrent.seeds,
+          leechers: torrent.leechers,
+          downloads: torrent.downloads,
+          commentsCount: torrent.commentsCount,
+          lastCommentDate: torrent.lastCommentDate,
+          author: torrent.author,
+          createdAt: torrent.createdAt,
+          lastUpdated: nowStr,
+          status: 'active',
+        }));
+
+        // Bulk upsert all torrents
+        const result = await bulkUpsertTorrents(torrentData);
+        
+        totalTorrentsProcessed += torrents.length;
+        totalTorrentsUpdated += result.inserted + result.updated;
+
+        console.log(`[REPARSE] Record ${record.id}: ${torrents.length} torrents parsed, ${result.inserted} new, ${result.updated} updated`);
       }
-
-      // Prepare torrent data for bulk upsert
-      const nowStr = new Date().toISOString();
-      const torrentData = torrents.map((torrent) => ({
-        id: uuidv4(),
-        topicId: torrent.topicId,
-        url: torrent.url,
-        title: torrent.title,
-        forumId: torrent.forumId,
-        size: torrent.size,
-        seeds: torrent.seeds,
-        leechers: torrent.leechers,
-        downloads: torrent.downloads,
-        commentsCount: torrent.commentsCount,
-        lastCommentDate: torrent.lastCommentDate,
-        author: torrent.author,
-        createdAt: torrent.createdAt,
-        lastUpdated: nowStr,
-        status: 'active',
-      }));
-
-      // Bulk upsert all torrents
-      const result = await bulkUpsertTorrents(torrentData);
-      
-      totalTorrentsProcessed += torrents.length;
-      totalTorrentsUpdated += result.inserted + result.updated;
-
-      console.log(`[REPARSE] Record ${record.id}: ${torrents.length} torrents parsed, ${result.inserted} new, ${result.updated} updated`);
     } catch (error) {
       console.error(`[REPARSE] Error processing record ${record.id}:`, error);
       // Continue with other records
     }
   }
 
-  console.log(`[REPARSE] Completed: ${totalTorrentsProcessed} torrents processed, ${totalTorrentsUpdated} total updates`);
+  console.log(`[REPARSE] Completed: ${totalTorrentsProcessed} torrents processed, ${totalTorrentsUpdated} total updates, ${totalDetailsProcessed} topic details processed`);
   
   return {
     recordsProcessed: crawlRecords.length,

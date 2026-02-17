@@ -16,6 +16,31 @@ export interface Torrent {
   created_at: string;
   last_updated: string;
   status: string;
+  // Optional detailed fields from topic page
+  details_url?: string | null;
+  description?: string | null;
+  category?: string | null;
+  forum_name?: string | null;
+  registered_until?: string | null;
+  details_seeders?: number | null;
+  last_checked?: string | null;
+  magnet_link?: string | null;
+  torrent_file?: string | null;
+  details_size?: string | null;
+  author_name?: string | null;
+  author_posts?: number | null;
+  topic_title?: string | null;
+  year?: number | null;
+  author_first_name?: string | null;
+  author_last_name?: string | null;
+  performer?: string | null;
+  series?: string | null;
+  book_number?: string | null;
+  genre?: string | null;
+  edition_type?: string | null;
+  audio_codec?: string | null;
+  bitrate?: string | null;
+  duration?: string | null;
 }
 
 export interface UserAnnotation {

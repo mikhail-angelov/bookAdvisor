@@ -25,6 +25,21 @@ export async function GET(
       last_checked: details?.lastChecked ?? null,
       magnet_link: details?.magnetLink ?? null,
       torrent_file: details?.torrentFile ?? null,
+      details_size: details?.size ?? null,
+      author_name: details?.authorName ?? null,
+      author_posts: details?.authorPosts ?? null,
+      topic_title: details?.topicTitle ?? null,
+      year: details?.year ?? null,
+      author_first_name: details?.authorFirstName ?? null,
+      author_last_name: details?.authorLastName ?? null,
+      performer: details?.performer ?? null,
+      series: details?.series ?? null,
+      book_number: details?.bookNumber ?? null,
+      genre: details?.genre ?? null,
+      edition_type: details?.editionType ?? null,
+      audio_codec: details?.audioCodec ?? null,
+      bitrate: details?.bitrate ?? null,
+      duration: details?.duration ?? null,
     };
 
     return NextResponse.json(result);

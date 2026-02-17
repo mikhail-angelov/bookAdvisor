@@ -9,6 +9,7 @@
 
 import axios from "axios";
 import * as cheerio from "cheerio";
+import * as iconv from "iconv-lite";
 import { v4 as uuidv4 } from "uuid";
 import { eq } from "drizzle-orm";
 import {
@@ -21,8 +22,9 @@ import {
   crawl,
 } from "@/db/index";
 import { RutrackerParser } from "@/lib/parsers";
-import { reparseCrawlData } from "@/lib/crawler";
+import { reparseCrawlData, crawlAndStoreTopicDetails, crawlDetailsBatch, crawlTopicDetails } from "@/lib/crawler";
 import { fixture } from "./fixtures/torrents-page";
+import { fixture as detailsFixture } from "./fixtures/torrent-details";
 
 // Mock topic details HTML
 const mockTopicDetailsHTML = `
@@ -884,6 +886,189 @@ describe("Crawler Integration Tests", () => {
         // lastCommentDate should have been updated from null
         expect(updated[0].lastCommentDate).not.toBeNull();
       }
+    });
+  });
+
+  describe("Details Crawling Tests", () => {
+    let axiosSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+      // Mock axios.get to return our test HTML
+      // Encode fixture as windows-1251 bytes to simulate real Rutracker response
+      const windows1251Buffer = iconv.encode(detailsFixture, "win1251");
+      
+      axiosSpy = jest.spyOn(axios, "get").mockResolvedValue({
+        data: windows1251Buffer,
+        headers: { "content-type": "text/html; charset=win1251" },
+      });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    // Insert dummy torrents to satisfy foreign key constraints
+    beforeEach(async () => {
+      const testDb = getDb();
+      if (!testDb) return;
+      const now = new Date().toISOString();
+      const forumId = 2387; // from fixture
+      // Insert torrents for topic IDs used in tests
+      const topicIds = ["6737707", "6737708", "6737709", "invalid"];
+      for (const topicId of topicIds) {
+        await testDb.insert(torrents).values({
+          id: uuidv4(),
+          topicId,
+          url: `https://rutracker.org/forum/viewtopic.php?t=${topicId}`,
+          title: `Test Torrent ${topicId}`,
+          forumId,
+          size: "1 GB",
+          seeds: 10,
+          leechers: 0,
+          downloads: 0,
+          author: "TestAuthor",
+          createdAt: now,
+          lastUpdated: now,
+          status: "active",
+        });
+      }
+    });
+
+    it("should crawl topic details and store in database", async () => {
+      const topicId = "6737707";
+      const result = await crawlAndStoreTopicDetails(topicId);
+      
+      expect(result).toBe(true);
+      
+      // Check that details were stored in database
+      const testDb = getDb();
+      if (!testDb) throw new Error("Database not initialized");
+      
+      const details = await testDb
+        .select()
+        .from(torrentDetails)
+        .where(eq(torrentDetails.torrentId, topicId));
+      
+      expect(details.length).toBe(1);
+      expect(details[0].description).toBeTruthy();
+      expect(details[0].magnetLink).toContain("magnet:?");
+      expect(details[0].size).toBe("2.99 GB");
+      expect(details[0].authorName).toBe("vugarmugar11");
+      expect(details[0].year).toBe(2025);
+    });
+
+    it("should crawl details batch with concurrency limit", async () => {
+      const topicIds = ["6737707", "6737708", "6737709"];
+      
+      // Mock axios to return different responses for each ID (same HTML for simplicity)
+      const windows1251Buffer = iconv.encode(detailsFixture, "win1251");
+      axiosSpy.mockResolvedValue({
+        data: windows1251Buffer,
+        headers: { "content-type": "text/html; charset=win1251" },
+      });
+      
+      const result = await crawlDetailsBatch(topicIds, 2, 100); // 2 concurrent, 100ms delay
+      
+      expect(result.success).toBe(3);
+      expect(result.failed).toBe(0);
+      
+      // Verify all details stored
+      const testDb = getDb();
+      if (!testDb) throw new Error("Database not initialized");
+      
+      for (const topicId of topicIds) {
+        const details = await testDb
+          .select()
+          .from(torrentDetails)
+          .where(eq(torrentDetails.torrentId, topicId));
+        expect(details.length).toBe(1);
+      }
+    });
+
+    it("should handle errors in batch crawling", async () => {
+      const topicIds = ["6737707", "invalid", "6737709"];
+      
+      // Mock axios to succeed for first, fail for second, succeed for third
+      const windows1251Buffer = iconv.encode(detailsFixture, "win1251");
+      axiosSpy.mockImplementation((url: string) => {
+        if (url.includes("t=invalid")) {
+          return Promise.reject(new Error("Network error"));
+        }
+        return Promise.resolve({
+          data: windows1251Buffer,
+          headers: { "content-type": "text/html; charset=win1251" },
+        });
+      });
+      
+      const result = await crawlDetailsBatch(topicIds, 2, 100);
+      
+      // Should have 2 successes, 1 failure
+      expect(result.success).toBe(2);
+      expect(result.failed).toBe(1);
+    });
+  });
+
+  describe("Reparse with Topic Pages", () => {
+    it("should reparse both forum pages and topic pages", async () => {
+      const testDb = getDb();
+      if (!testDb) throw new Error("Database not initialized");
+      
+      const forumId = 2387;
+      const now = new Date().toISOString();
+      
+      // Insert a forum page crawl record
+      await testDb.insert(crawl).values({
+        id: uuidv4(),
+        url: `https://rutracker.org/forum/viewforum.php?f=${forumId}&start=0`,
+        time: now,
+        codePage: "windows-1251",
+        htmlBody: fixture,
+        createdAt: now,
+      });
+      
+      // Insert a topic page crawl record
+      await testDb.insert(crawl).values({
+        id: uuidv4(),
+        url: `https://rutracker.org/forum/viewtopic.php?t=6737707`,
+        time: now,
+        codePage: "windows-1251",
+        htmlBody: detailsFixture,
+        createdAt: now,
+      });
+      
+      // Insert a torrent to satisfy foreign key constraint
+      await testDb.insert(torrents).values({
+        id: uuidv4(),
+        topicId: "6737707",
+        url: "https://rutracker.org/forum/viewtopic.php?t=6737707",
+        title: "Test Torrent",
+        forumId,
+        size: "1 GB",
+        seeds: 10,
+        leechers: 0,
+        downloads: 0,
+        author: "TestAuthor",
+        createdAt: now,
+        lastUpdated: now,
+        status: "active",
+      });
+      
+      // Call reparse
+      const result = await reparseCrawlData(forumId);
+      
+      // Should process both records
+      expect(result.recordsProcessed).toBe(2);
+      expect(result.torrentsProcessed).toBeGreaterThan(0);
+      expect(result.torrentsUpdated).toBeGreaterThan(0);
+      
+      // Check that torrent details were stored
+      const details = await testDb
+        .select()
+        .from(torrentDetails)
+        .where(eq(torrentDetails.torrentId, "6737707"));
+      expect(details.length).toBe(1);
+      expect(details[0].description).toBeTruthy();
+      expect(details[0].magnetLink).toContain("magnet:?");
     });
   });
 });

@@ -15,6 +15,13 @@
       "when": 1771343609072,
       "tag": "0001_nervous_loners",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771350186245,
+      "tag": "0002_add_size_to_torrent_details",
+      "breakpoints": true
     }
   ]
 }

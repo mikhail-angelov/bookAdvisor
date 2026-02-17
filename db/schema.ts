@@ -36,6 +36,7 @@ export const torrentDetails = sqliteTable('torrent_details', {
   lastChecked: text('last_checked'),
   magnetLink: text('magnet_link'),
   torrentFile: text('torrent_file'),
+  size: text('size'),
   createdAt: text('created_at'),
   // Additional fields from HTML parsing
   authorName: text('author_name'),
