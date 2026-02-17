@@ -13,6 +13,8 @@ export const torrents = sqliteTable('torrents', {
   seeds: integer('seeds').default(0),
   leechers: integer('leechers').default(0),
   downloads: integer('downloads').default(0),
+  commentsCount: integer('comments_count').default(0),
+  lastCommentDate: text('last_comment_date'),
   author: text('author'),
   createdAt: text('created_at'),
   lastUpdated: text('last_updated'),

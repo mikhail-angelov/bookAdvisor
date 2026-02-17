@@ -12,6 +12,8 @@ export interface TorrentData {
   seeds: number;
   leechers: number;
   downloads: number;
+  commentsCount: number;
+  lastCommentDate: string;
   author: string;
   createdAt: string;
 }
@@ -125,12 +127,15 @@ export class RutrackerParser implements TorrentListParser {
         // Get author from topicAuthor class
         const author = $row.find('a.topicAuthor').text().trim() || 'Unknown';
         
-        // Downloads - not directly available, estimate from last column
-        let downloads = 0;
+        // Get comments count, downloads count, and last comment date
+        const repliesCol = $row.find('td.vf-col-replies');
+        const commentsCount = parseNumber(repliesCol.find('span[title="Ответов"]').text());
+        const downloads = parseNumber(repliesCol.find('p.med b').text());
         
         // Get last post info (column 5)
         const lastPostCol = $row.find('td.vf-col-last-post');
         const lastPostText = lastPostCol.text().trim();
+        const lastCommentDate = lastPostCol.find('p').first().text().trim();
         
         // Only add if we have a valid topic ID and title
         if (topicId && title) {
@@ -143,6 +148,8 @@ export class RutrackerParser implements TorrentListParser {
             seeds,
             leechers,
             downloads,
+            commentsCount,
+            lastCommentDate,
             author,
             createdAt: lastPostText,
           });

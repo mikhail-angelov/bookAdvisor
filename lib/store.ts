@@ -10,6 +10,8 @@ export interface Torrent {
   seeds: number;
   leechers: number;
   downloads: number;
+  comments_count: number;
+  last_comment_date: string;
   author: string;
   created_at: string;
   last_updated: string;

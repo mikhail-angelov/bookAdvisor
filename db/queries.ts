@@ -139,6 +139,8 @@ export async function insertTorrent(torrent: NewTorrent): Promise<void> {
       seeds: torrent.seeds ?? 0,
       leechers: torrent.leechers ?? 0,
       downloads: torrent.downloads ?? 0,
+      commentsCount: torrent.commentsCount ?? 0,
+      lastCommentDate: torrent.lastCommentDate ?? null,
       author: torrent.author ?? null,
       createdAt: torrent.createdAt ?? null,
       lastUpdated: torrent.lastUpdated ?? null,
@@ -154,6 +156,8 @@ export async function insertTorrent(torrent: NewTorrent): Promise<void> {
         seeds: torrent.seeds ?? 0,
         leechers: torrent.leechers ?? 0,
         downloads: torrent.downloads ?? 0,
+        commentsCount: torrent.commentsCount ?? 0,
+        lastCommentDate: torrent.lastCommentDate ?? null,
         author: torrent.author ?? null,
         createdAt: torrent.createdAt ?? null,
         lastUpdated: torrent.lastUpdated ?? null,
@@ -189,6 +193,8 @@ export async function bulkUpsertTorrents(
           seeds: torrent.seeds ?? 0,
           leechers: torrent.leechers ?? 0,
           downloads: torrent.downloads ?? 0,
+          commentsCount: torrent.commentsCount ?? 0,
+          lastCommentDate: torrent.lastCommentDate ?? null,
           author: torrent.author ?? null,
           createdAt: torrent.createdAt ?? null,
           lastUpdated: torrent.lastUpdated ?? null,
@@ -208,6 +214,8 @@ export async function bulkUpsertTorrents(
         seeds: torrent.seeds ?? 0,
         leechers: torrent.leechers ?? 0,
         downloads: torrent.downloads ?? 0,
+        commentsCount: torrent.commentsCount ?? 0,
+        lastCommentDate: torrent.lastCommentDate ?? null,
         author: torrent.author ?? null,
         createdAt: torrent.createdAt ?? null,
         lastUpdated: torrent.lastUpdated ?? null,
@@ -466,6 +474,27 @@ export async function getCrawlRecordByUrl(
 
   if (!result || result.length === 0) return undefined;
   return result[0];
+}
+
+/**
+ * Get crawl records by forum ID
+ */
+export async function getCrawlRecordsByForumId(
+  forumId: number,
+): Promise<CrawlRecord[]> {
+  const db = await getDbAsync();
+  if (!db) return [];
+
+  // URL pattern: https://rutracker.org/forum/viewforum.php?f={forumId}&start={page}
+  const urlPattern = `viewforum.php?f=${forumId}`;
+  
+  const result = await db
+    .select()
+    .from(crawl)
+    .where(like(crawl.url, `%${urlPattern}%`))
+    .orderBy(desc(crawl.time));
+
+  return result;
 }
 
 // ============ Users ============

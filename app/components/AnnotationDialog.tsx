@@ -63,6 +63,14 @@ export function AnnotationDialog({
               <span className="text-gray-500 block">Downloads</span>
               <span className="font-medium text-gray-900">{torrent.downloads}</span>
             </div>
+            <div>
+              <span className="text-gray-500 block">Comments</span>
+              <span className="font-medium text-gray-900">{torrent.comments_count}</span>
+            </div>
+            <div>
+              <span className="text-gray-500 block">Last Comment</span>
+              <span className="font-medium text-gray-900">{torrent.last_comment_date}</span>
+            </div>
           </div>
 
           <div className="border-t border-gray-100 pt-4 mt-4">

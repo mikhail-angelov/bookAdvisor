@@ -418,6 +418,101 @@ export function getCrawlerStatus() {
 }
 
 /**
+ * Reparse crawled HTML data from database
+ * This is useful when parser logic has changed and you want to update existing data
+ */
+export async function reparseCrawlData(forumId: number): Promise<{
+  recordsProcessed: number;
+  torrentsProcessed: number;
+  torrentsUpdated: number;
+}> {
+  if (crawlerState.isRunning) {
+    throw new Error('Crawler is currently running. Stop the crawl before re-parsing.');
+  }
+
+  // Import here to avoid circular dependencies
+  const { getCrawlRecordsByForumId, bulkUpsertTorrents } = await import('@/db/queries');
+  const { ParserFactory } = await import('./parsers');
+  const { v4: uuidv4 } = await import('uuid');
+
+  // Get all crawl records for this forum
+  const crawlRecords = await getCrawlRecordsByForumId(forumId);
+  
+  if (crawlRecords.length === 0) {
+    console.log(`[REPARSE] No crawl records found for forum ${forumId}`);
+    return {
+      recordsProcessed: 0,
+      torrentsProcessed: 0,
+      torrentsUpdated: 0,
+    };
+  }
+
+  console.log(`[REPARSE] Found ${crawlRecords.length} crawl records for forum ${forumId}`);
+
+  // Use the default parser
+  const parser = ParserFactory.getDefaultParser();
+  let totalTorrentsProcessed = 0;
+  let totalTorrentsUpdated = 0;
+
+  // Process each crawl record
+  for (const record of crawlRecords) {
+    if (!record.htmlBody) {
+      console.log(`[REPARSE] Skipping record ${record.id} - no HTML content`);
+      continue;
+    }
+
+    try {
+      // Parse the HTML
+      const torrents = parser.parse(record.htmlBody, forumId);
+      
+      if (torrents.length === 0) {
+        console.log(`[REPARSE] No torrents parsed from record ${record.id}`);
+        continue;
+      }
+
+      // Prepare torrent data for bulk upsert
+      const nowStr = new Date().toISOString();
+      const torrentData = torrents.map((torrent) => ({
+        id: uuidv4(),
+        topicId: torrent.topicId,
+        url: torrent.url,
+        title: torrent.title,
+        forumId: torrent.forumId,
+        size: torrent.size,
+        seeds: torrent.seeds,
+        leechers: torrent.leechers,
+        downloads: torrent.downloads,
+        commentsCount: torrent.commentsCount,
+        lastCommentDate: torrent.lastCommentDate,
+        author: torrent.author,
+        createdAt: torrent.createdAt,
+        lastUpdated: nowStr,
+        status: 'active',
+      }));
+
+      // Bulk upsert all torrents
+      const result = await bulkUpsertTorrents(torrentData);
+      
+      totalTorrentsProcessed += torrents.length;
+      totalTorrentsUpdated += result.inserted + result.updated;
+
+      console.log(`[REPARSE] Record ${record.id}: ${torrents.length} torrents parsed, ${result.inserted} new, ${result.updated} updated`);
+    } catch (error) {
+      console.error(`[REPARSE] Error processing record ${record.id}:`, error);
+      // Continue with other records
+    }
+  }
+
+  console.log(`[REPARSE] Completed: ${totalTorrentsProcessed} torrents processed, ${totalTorrentsUpdated} total updates`);
+  
+  return {
+    recordsProcessed: crawlRecords.length,
+    torrentsProcessed: totalTorrentsProcessed,
+    torrentsUpdated: totalTorrentsUpdated,
+  };
+}
+
+/**
  * Set a custom parser for the crawler
  * This allows for injecting different parsers for different torrent sites
  */

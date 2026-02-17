@@ -77,6 +77,7 @@ function HomeContent() {
   const [forumId, setForumId] = useState("2387");
   const [maxPages, setMaxPages] = useState("3");
   const [loading, setLoading] = useState(false);
+  const [reparsing, setReparsing] = useState(false);
   const [loginEmail, setLoginEmail] = useState("");
   const [sendingMagicLink, setSendingMagicLink] = useState(false);
   const socketRef = useRef<Socket | null>(null);
@@ -289,6 +290,32 @@ function HomeContent() {
     }
   }, [fetchStatus]);
 
+  const reparseCrawl = useCallback(async () => {
+    setReparsing(true);
+    try {
+      const response = await fetch("/api/crawl/reparse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          forumId: parseInt(forumId),
+        }),
+      });
+      const result = await response.json();
+      if (response.ok) {
+        toast.success(`Reparse completed: ${result.torrentsUpdated} torrents updated`);
+        // Refresh torrents data
+        fetchTorrents();
+      } else {
+        toast.error(`Reparse failed: ${result.error}`);
+      }
+    } catch (err) {
+      console.error("Error reparsing crawl:", err);
+      toast.error("Failed to reparse crawl data");
+    } finally {
+      setReparsing(false);
+    }
+  }, [forumId, fetchTorrents]);
+
   const handleSaveAnnotation = useCallback(async (data: {
     rating: number;
     annotation: string;
@@ -388,10 +415,12 @@ function HomeContent() {
           forumId={forumId}
           maxPages={maxPages}
           isRunning={status.isRunning}
+          reparsing={reparsing}
           onForumIdChange={setForumId}
           onMaxPagesChange={setMaxPages}
           onStart={startCrawl}
           onStop={stopCrawl}
+          onReparse={reparseCrawl}
         />
 
         {status.isRunning && (

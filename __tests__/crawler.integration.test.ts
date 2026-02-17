@@ -18,8 +18,10 @@ import {
   torrents,
   torrentDetails,
   crawlHistory,
+  crawl,
 } from "@/db/index";
 import { RutrackerParser } from "@/lib/parsers";
+import { reparseCrawlData } from "@/lib/crawler";
 import { fixture } from "./fixtures/torrents-page";
 
 // Mock topic details HTML
@@ -118,6 +120,7 @@ describe("Crawler Integration Tests", () => {
       await testDb.delete(torrentDetails);
       await testDb.delete(torrents);
       await testDb.delete(crawlHistory);
+      await testDb.delete(crawl);
     }
   });
 
@@ -139,7 +142,13 @@ describe("Crawler Integration Tests", () => {
       expect(firstTorrent.seeds).toBeDefined();
       expect(firstTorrent.leechers).toBeDefined();
       expect(firstTorrent.downloads).toBeDefined();
+      expect(firstTorrent.commentsCount).toBeDefined();
+      expect(firstTorrent.lastCommentDate).toBeDefined();
       expect(firstTorrent.author).toBeDefined();
+      // Verify specific values from fixture
+      expect(firstTorrent.commentsCount).toBe(25);
+      expect(firstTorrent.downloads).toBe(1007);
+      expect(firstTorrent.lastCommentDate).toBe("2026-01-23 14:36");
     });
 
     it("should parse all required fields for each torrent", () => {
@@ -156,6 +165,8 @@ describe("Crawler Integration Tests", () => {
         expect(torrent.seeds).toBeDefined();
         expect(torrent.leechers).toBeDefined();
         expect(torrent.downloads).toBeDefined();
+        expect(torrent.commentsCount).toBeDefined();
+        expect(torrent.lastCommentDate).toBeDefined();
         expect(torrent.author).toBeDefined();
       });
     });
@@ -210,6 +221,8 @@ describe("Crawler Integration Tests", () => {
         seeds: 100,
         leechers: 50,
         downloads: 500,
+        commentsCount: 10,
+        lastCommentDate: "2024-01-16 10:30",
         author: "TestAuthor1",
         createdAt: "2024-01-15",
         lastUpdated: now,
@@ -233,6 +246,8 @@ describe("Crawler Integration Tests", () => {
       expect(results[0].seeds).toBe(torrentData.seeds);
       expect(results[0].leechers).toBe(torrentData.leechers);
       expect(results[0].downloads).toBe(torrentData.downloads);
+      expect(results[0].commentsCount).toBe(torrentData.commentsCount);
+      expect(results[0].lastCommentDate).toBe(torrentData.lastCommentDate);
       expect(results[0].author).toBe(torrentData.author);
       expect(results[0].status).toBe("active");
     });
@@ -252,6 +267,8 @@ describe("Crawler Integration Tests", () => {
           seeds: 100,
           leechers: 50,
           downloads: 500,
+          commentsCount: i * 10,
+          lastCommentDate: now,
           author: "TestAuthor",
           createdAt: now,
           lastUpdated: now,
@@ -306,6 +323,8 @@ describe("Crawler Integration Tests", () => {
           seeds: torrent.seeds,
           leechers: torrent.leechers,
           downloads: torrent.downloads,
+          commentsCount: torrent.commentsCount,
+          lastCommentDate: torrent.lastCommentDate,
           author: torrent.author,
           createdAt: torrent.createdAt || now,
           lastUpdated: now,
@@ -693,6 +712,178 @@ describe("Crawler Integration Tests", () => {
         .from(torrents)
         .where(eq(torrents.topicId, "999999"));
       expect(notExists.length).toBe(0);
+    });
+  });
+
+  describe("Reparse Tests", () => {
+    it("should reparse crawl records and update torrents with new fields", async () => {
+      const testDb = getDb();
+      if (!testDb) {
+        throw new Error("Test database not initialized");
+      }
+
+      const forumId = 2387;
+      const now = new Date().toISOString();
+
+      // 1. Insert a crawl record with HTML containing new fields
+      const crawlRecordId = uuidv4();
+      await testDb.insert(crawl).values({
+        id: crawlRecordId,
+        url: `https://rutracker.org/forum/viewforum.php?f=${forumId}&start=0`,
+        time: now,
+        codePage: "windows-1251",
+        htmlBody: fixture,
+        createdAt: now,
+      });
+
+      // 2. Insert a torrent with old data (missing comments_count and last_comment_date)
+      const torrentId = uuidv4();
+      const oldTorrent = {
+        id: torrentId,
+        topicId: "6768110", // This topic ID exists in the fixture
+        url: "https://rutracker.org/forum/viewtopic.php?t=6768110",
+        title: "lanpirot - Позывной Хоттабыч 9, Исчадие Кромки, Часть 2 [Виктор Моключенко, 2025, 128 kbps, MP3]",
+        forumId: forumId,
+        size: "446.4 MB",
+        seeds: 32,
+        leechers: 2,
+        downloads: 0, // Old parser might have set downloads to 0 or different value
+        commentsCount: 0, // Missing, should be updated to 25
+        lastCommentDate: null, // Missing, should be updated to "2026-01-23 14:36"
+        author: "Simeon",
+        createdAt: now,
+        lastUpdated: now,
+        status: "active",
+      };
+      await testDb.insert(torrents).values(oldTorrent);
+
+      // Verify initial state
+      const initialTorrent = await testDb
+        .select()
+        .from(torrents)
+        .where(eq(torrents.topicId, "6768110"));
+      expect(initialTorrent.length).toBe(1);
+      expect(initialTorrent[0].commentsCount).toBe(0);
+      expect(initialTorrent[0].lastCommentDate).toBeNull();
+
+      // 3. Call reparseCrawlData
+      const result = await reparseCrawlData(forumId);
+      
+      // Verify reparse results
+      expect(result.recordsProcessed).toBe(1);
+      expect(result.torrentsProcessed).toBeGreaterThan(0);
+      expect(result.torrentsUpdated).toBeGreaterThan(0);
+
+      // 4. Verify that the torrent has been updated with new fields
+      const updatedTorrent = await testDb
+        .select()
+        .from(torrents)
+        .where(eq(torrents.topicId, "6768110"));
+      expect(updatedTorrent.length).toBe(1);
+      
+      // Check that comments_count and last_comment_date are now populated
+      expect(updatedTorrent[0].commentsCount).toBe(25); // From fixture: <span title="Ответов">25</span>
+      expect(updatedTorrent[0].lastCommentDate).toBe("2026-01-23 14:36"); // From fixture
+      
+      // Also check downloads count was updated (should be 1007 from fixture)
+      expect(updatedTorrent[0].downloads).toBe(1007); // From fixture: <b>1,007</b>
+      
+      // Verify other fields are preserved
+      expect(updatedTorrent[0].title).toBe(oldTorrent.title);
+      expect(updatedTorrent[0].seeds).toBe(32);
+      expect(updatedTorrent[0].leechers).toBe(2);
+      expect(updatedTorrent[0].size).toContain("MB");
+      expect(updatedTorrent[0].author).toBe("Simeon");
+    });
+
+    it("should handle multiple crawl records and update all torrents", async () => {
+      const testDb = getDb();
+      if (!testDb) {
+        throw new Error("Test database not initialized");
+      }
+
+      const forumId = 2387;
+      const now = new Date().toISOString();
+
+      // Insert multiple crawl records with different HTML (could be same fixture for simplicity)
+      for (let i = 0; i < 3; i++) {
+        await testDb.insert(crawl).values({
+          id: uuidv4(),
+          url: `https://rutracker.org/forum/viewforum.php?f=${forumId}&start=${i * 50}`,
+          time: now,
+          codePage: "windows-1251",
+          htmlBody: fixture,
+          createdAt: now,
+        });
+      }
+
+      // Insert multiple torrents with old data
+      const torrentsToInsert = [
+        {
+          topicId: "6768110",
+          title: "Torrent 1",
+          commentsCount: 0,
+          lastCommentDate: null,
+        },
+        {
+          topicId: "6682645", 
+          title: "Torrent 2",
+          commentsCount: 0,
+          lastCommentDate: null,
+        },
+        {
+          topicId: "6795231",
+          title: "Torrent 3",
+          commentsCount: 0,
+          lastCommentDate: null,
+        },
+      ];
+
+      for (const torrent of torrentsToInsert) {
+        await testDb.insert(torrents).values({
+          id: uuidv4(),
+          topicId: torrent.topicId,
+          url: `https://rutracker.org/forum/viewtopic.php?t=${torrent.topicId}`,
+          title: torrent.title,
+          forumId: forumId,
+          size: "100 MB",
+          seeds: 10,
+          leechers: 1,
+          downloads: 0,
+          commentsCount: torrent.commentsCount,
+          lastCommentDate: torrent.lastCommentDate,
+          author: "TestAuthor",
+          createdAt: now,
+          lastUpdated: now,
+          status: "active",
+        });
+      }
+
+      // Call reparse
+      const result = await reparseCrawlData(forumId);
+      console.log('Reparse result:', result);
+      
+      // Log all torrents after reparse
+      const allTorrents = await testDb.select().from(torrents);
+      console.log('All torrents after reparse:', allTorrents);
+      
+      expect(result.recordsProcessed).toBe(3);
+      expect(result.torrentsProcessed).toBeGreaterThan(0);
+      expect(result.torrentsUpdated).toBeGreaterThan(0);
+
+      // Verify all torrents have been updated
+      for (const torrent of torrentsToInsert) {
+        const updated = await testDb
+          .select()
+          .from(torrents)
+          .where(eq(torrents.topicId, torrent.topicId));
+        console.log(`Torrent ${torrent.topicId}:`, updated[0]);
+        expect(updated.length).toBe(1);
+        // downloads should have been updated from 0 to positive value
+        expect(updated[0].downloads).toBeGreaterThan(0);
+        // lastCommentDate should have been updated from null
+        expect(updated[0].lastCommentDate).not.toBeNull();
+      }
     });
   });
 });
