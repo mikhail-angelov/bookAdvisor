@@ -1,0 +1,50 @@
+{
+  "name": "rutracker-crawler",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "dev:server": "tsx server.ts",
+    "build": "next build",
+    "db:migrate": "tsx -e \"import { initDatabase } from './lib/db/index'; import { runMigrations } from './lib/db/migrate'; (async () => { await initDatabase('prod'); await runMigrations(); })();\"",
+    "start": "next start",
+    "start:server": "tsx server.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/jsonwebtoken": "^9.0.10",
+    "axios": "^1.13.5",
+    "better-sqlite3": "^12.6.2",
+    "cheerio": "^1.0.0-rc.12",
+    "drizzle-orm": "^0.45.1",
+    "iconv-lite": "^0.7.2",
+    "jsonwebtoken": "^9.0.3",
+    "next": "14.2.0",
+    "nodemailer": "^8.0.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "sonner": "^2.0.7",
+    "uuid": "^9.0.0",
+    "zustand": "^5.0.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@types/nodemailer": "^7.0.10",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/uuid": "^9.0.0",
+    "autoprefixer": "^10.4.24",
+    "drizzle-kit": "^0.31.9",
+    "jest": "^29.7.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "ts-jest": "^29.1.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.0.0"
+  }
+}
