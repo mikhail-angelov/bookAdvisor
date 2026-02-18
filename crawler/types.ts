@@ -22,16 +22,6 @@ export enum CrawlType {
   TORRENT_DETAILS = 'torrent-details'
 }
 
-export interface CrawlProgress {
-  totalPages: number;
-  pagesFetched: number;
-  torrentLinksFound: number;
-  detailsPagesFetched: number;
-  errors: number;
-  startTime: Date;
-  estimatedTimeRemaining?: number;
-}
-
 export interface FetchResult {
   url: string;
   html: string;
@@ -39,10 +29,4 @@ export interface FetchResult {
   contentType?: string;
   encoding?: string;
   error?: string;
-}
-
-export interface TorrentLink {
-  url: string;
-  topicId: string;
-  title: string;
 }
