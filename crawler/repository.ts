@@ -26,12 +26,32 @@ export async function initializeCrawlRecords(
     return { id: uuidv4(), url, status: CrawlStatus.PENDING, type, createdAt: now };
   });
 
-  if (records.length > 0) {
-    await db.insert(crawl).values(records);
-    console.log(`Created ${records.length} crawl records for forum ID ${forumId}`);
+  if (records.length === 0) return [];
+
+  // For forum pages: upsert — reset existing records back to pending so they get re-crawled
+  const urls = records.map(r => r.url);
+  const existing = await db
+    .select({ id: crawl.id, url: crawl.url })
+    .from(crawl)
+    .where(inArray(crawl.url, urls));
+  const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
+
+  const toInsert = records.filter(r => !existingByUrl.has(r.url));
+  const toReset = records.filter(r => existingByUrl.has(r.url));
+
+  if (toInsert.length > 0) {
+    await db.insert(crawl).values(toInsert);
+  }
+  for (const r of toReset) {
+    await db.update(crawl)
+      .set({ status: CrawlStatus.PENDING, htmlBody: null, codePage: null })
+      .where(eq(crawl.url, r.url));
   }
 
-  return records.map(r => r.id);
+  console.log(`Initialized ${records.length} crawl records for forum ID ${forumId} (${toInsert.length} new, ${toReset.length} reset)`);
+
+  // Return IDs: inserted ones use new IDs, reset ones use existing IDs
+  return records.map(r => existingByUrl.get(r.url) ?? r.id);
 }
 
 /**
@@ -97,7 +117,7 @@ export async function updateCrawlRecord(
  * Create crawl records for torrent detail pages, skipping already-known URLs.
  * Uses a single bulk SELECT to avoid N+1 queries.
  */
-export async function createTorrentDetailCrawlRecords(
+export async function createFreshTorrentDetailCrawlRecords(
   torrentUrls: string[]
 ): Promise<string[]> {
   if (torrentUrls.length === 0) return [];
@@ -220,26 +240,35 @@ export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
 
   const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
 
-  const toInsert: NewBook[] = [];
-  const toUpdate: Array<{ id: string; data: NewBook }> = [];
+  const toInsert: NewBook[] = books.filter(b=>!existingByUrl.get(b.url));
+ 
+  if (toInsert.length > 0) {
+    await db.insert(book).values(toInsert);
+  }
 
-  for (const b of books) {
-    const existingId = b.url ? existingByUrl.get(b.url) : undefined;
-    if (existingId) {
-      toUpdate.push({ id: existingId, data: b });
-    } else {
-      toInsert.push(b);
+  console.log(`Successfully processed ${books.length} books (${toInsert.length} inserted`);
+}
+export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
+  if (books.length === 0) return;
+
+  const db = await getDbAsync();
+
+  const urls = books.map(b => b.url ?? '').filter(Boolean);
+
+  // Single query to find all existing books by URL
+  const existing = urls.length > 0
+    ? await db.select({ id: book.id, url: book.url }).from(book).where(inArray(book.url, urls))
+    : [];
+
+  const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
+
+  const toUpdate: Partial<NewBook>[] = books.filter(b=>b.url && !existingByUrl.get(b.url));
+ 
+  for (const { url, ...data } of toUpdate) {
+    if(url){
+      await db.update(book).set(data).where(eq(book.url, url));
     }
   }
 
-  await db.transaction(async (tx) => {
-    if (toInsert.length > 0) {
-      await tx.insert(book).values(toInsert);
-    }
-    for (const { id, data } of toUpdate) {
-      await tx.update(book).set(data).where(eq(book.id, id));
-    }
-  });
-
-  console.log(`Successfully processed ${books.length} books (${toInsert.length} inserted, ${toUpdate.length} updated)`);
+  console.log(`Successfully processed ${books.length} books ${toUpdate.length} updated)`);
 }

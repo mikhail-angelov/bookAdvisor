@@ -18,7 +18,7 @@ function extractTorrentUrls(html: string): string[] {
   const $ = cheerio.load(html);
   const seen = new Set<string>();
 
-  $('tr.hl-tr a[href*="viewtopic.php"]').each((_, link) => {
+  $('tr.hl-tr a.torTopic[href*="viewtopic.php"]').each((_, link) => {
     const href = $(link).attr('href');
     if (!href) return;
     const url = href.startsWith('http') ? href : `${RUTRACKER_BASE}/${href}`;
@@ -112,7 +112,7 @@ export async function main(config: CrawlConfig): Promise<void> {
     async (_record, html) => {
       const urls = extractTorrentUrls(html);
       if (urls.length > 0) {
-        await repository.createTorrentDetailCrawlRecords(urls);
+        await repository.createFreshTorrentDetailCrawlRecords(urls);
         torrentLinksFound += urls.length;
         console.log(`Found ${urls.length} torrent links (total: ${torrentLinksFound})`);
       }

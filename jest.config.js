@@ -14,7 +14,6 @@ const customJestConfig = {
     '**/__tests__/**/*.test.ts',
     '**/__tests__/**/*.test.tsx',
     '**/__tests__/**/*.test.js',
-    '**/__tests__/**/*.test.ts',
   ],
   collectCoverageFrom: [
     'lib/**/*.ts',

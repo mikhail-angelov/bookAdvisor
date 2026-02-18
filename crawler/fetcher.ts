@@ -48,17 +48,19 @@ export async function fetchUrl(
       });
 
       const contentType = response.headers['content-type'] || '';
-      const encoding =
-        contentType.includes('charset=win1251') ||
-        contentType.includes('charset=windows-1251') ||
-        contentType.includes('charset=cp1251')
-          ? 'windows-1251'
-          : 'utf-8';
+      const buffer = response.data as Buffer;
 
-      const html =
-        encoding === 'utf-8'
-          ? (response.data as Buffer).toString('utf-8')
-          : iconv.decode(response.data as Buffer, encoding);
+      // Sniff charset from <meta charset="..."> or <meta http-equiv="Content-Type" content="...charset=...">
+      // Use latin1 to read raw bytes without corruption
+      const sniff = buffer.slice(0, 4096).toString('latin1');
+      const metaCharsetMatch =
+        sniff.match(/<meta[^>]+charset=["']?\s*([^"'\s;>]+)/i) ||
+        sniff.match(/charset=["']?\s*([^"'\s;>]+)/i);
+      const metaCharset = metaCharsetMatch?.[1]?.toLowerCase() ?? '';
+
+      const encoding = iconv.encodingExists(metaCharset) ? metaCharset : 'utf-8';
+
+      const html = iconv.decode(buffer, encoding);
 
       return { url, html, status: response.status, contentType, encoding };
     } catch (error: any) {

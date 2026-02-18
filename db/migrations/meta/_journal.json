@@ -5,15 +5,8 @@
     {
       "idx": 0,
       "version": "6",
-      "when": 1771398105055,
-      "tag": "0000_lyrical_gladiator",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "6",
-      "when": 1771400128354,
-      "tag": "0001_mixed_wendell_rand",
+      "when": 1771406033010,
+      "tag": "0000_rare_rafael_vega",
       "breakpoints": true
     }
   ]

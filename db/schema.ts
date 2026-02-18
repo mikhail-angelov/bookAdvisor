@@ -6,7 +6,7 @@ import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core
 export const user = sqliteTable("users", {
   id: text("id").primaryKey(),
   username: text("username"),
-  email: text("email").notNull(),
+  email: text("email").unique().notNull(),
   createdAt: text("created_at").notNull(),
 });
 
@@ -39,8 +39,8 @@ export const crawlHistory = sqliteTable("crawl_history", {
 
 export const book = sqliteTable("books", {
   id: text("id").primaryKey(),
-  crawlId: text("crawl_id").references(() => crawl.id),
-  url: text("url"),
+  crawlId: text("crawl_id").unique().notNull(),
+  url: text("url").notNull(),
   title: text("title").notNull(),
   category: text("category").notNull().default("Российская фантастика"),
   externalId: integer("external_id"),
@@ -50,7 +50,6 @@ export const book = sqliteTable("books", {
   downloads: integer("downloads").default(0),
   commentsCount: integer("comments_count").default(0),
   lastCommentDate: text("last_comment_date"),
-  // Additional fields from HTML parsing
   authorName: text("author_name"),
   authorPosts: integer("author_posts"),
   topicTitle: text("topic_title"),

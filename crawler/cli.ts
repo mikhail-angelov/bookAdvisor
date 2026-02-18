@@ -74,7 +74,7 @@ Standalone Rutracker Crawler
 ============================
 
 Usage:
-  node crawler/cli.ts [command] [options]
+  npm run crawl -- [command] [options]
 
 Commands:
   crawl (default)               Download new pages from Rutracker
@@ -90,9 +90,9 @@ Options:
   --help, -h                    Show this help message
 
 Examples:
-  node crawler/cli.ts --pages 10
-  node crawler/cli.ts parse
-  node crawler/cli.ts parse --force
+  npm run crawl -- --pages 10
+  npm run crawl -- parse
+  npm run crawl -- parse --force
   `);
 }
 
