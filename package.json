@@ -9,7 +9,8 @@
     "migrate:generate": "drizzle-kit generate",
     "start": "next start",
     "start:server": "tsx server.ts",
-    "test": "jest"
+    "test": "jest",
+    "crawl": "tsx crawler/cli.ts"
   },
   "dependencies": {
     "@types/better-sqlite3": "^7.6.13",

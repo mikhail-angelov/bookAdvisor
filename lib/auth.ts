@@ -1,11 +1,20 @@
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 
 const JWT_SECRET = process.env.AUTH_SECRET || 'dev-secret-change-in-production';
-const JWT_EXPIRY = '1h'; // 1 hour
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
 export interface MagicLinkPayload {
   email: string;
   type: 'magic-link';
+  iat?: number;
+  exp?: number;
+}
+
+export interface SessionPayload {
+  userId: string;
+  email: string;
+  type: 'session';
   iat?: number;
   exp?: number;
 }
@@ -19,22 +28,18 @@ export function createMagicLinkToken(email: string): string {
     type: 'magic-link',
   };
   
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '15m' });
 }
 
 /**
  * Verify and decode a JWT magic link token
- * Returns the payload if valid, throws error if invalid/expired
  */
 export function verifyMagicLinkToken(token: string): MagicLinkPayload {
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as MagicLinkPayload;
-    
-    // Ensure this is a magic-link token
     if (decoded.type !== 'magic-link') {
       throw new Error('Invalid token type');
     }
-    
     return decoded;
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
@@ -54,19 +59,59 @@ export function createSessionToken(userId: string, email: string): string {
   return jwt.sign(
     { userId, email, type: 'session' },
     JWT_SECRET,
-    { expiresIn: '7d' } // 7 days session
+    { expiresIn: '7d' }
   );
 }
 
 /**
  * Verify session JWT
  */
-export function verifySessionToken(token: string): { userId: string; email: string } {
-  const decoded = jwt.verify(token, JWT_SECRET) as any;
-  
+export function verifySessionToken(token: string): SessionPayload {
+  const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
   if (decoded.type !== 'session') {
     throw new Error('Invalid session token');
   }
-  
-  return { userId: decoded.userId, email: decoded.email };
+  return decoded;
+}
+
+/**
+ * Send magic link email
+ */
+export async function sendMagicLinkEmail(email: string, token: string): Promise<void> {
+  const magicLink = `${APP_URL}/api/auth/verify?token=${token}`;
+
+  // For development, log to console if no SMTP configured
+  if (!process.env.SMTP_HOST) {
+    console.log('--- MAGIC LINK EMAIL ---');
+    console.log(`To: ${email}`);
+    console.log(`Link: ${magicLink}`);
+    console.log('------------------------');
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587'),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  await transporter.sendMail({
+    from: `"Book Tracker" <${process.env.SMTP_FROM || 'noreply@example.com'}>`,
+    to: email,
+    subject: 'Your Magic Link for Book Tracker',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #2563eb;">Welcome to Book Tracker</h2>
+        <p>Click the button below to sign in to your account. This link will expire in 15 minutes.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${magicLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Sign In</a>
+        </div>
+        <p style="color: #666; font-size: 14px;">If you didn't request this email, you can safely ignore it.</p>
+      </div>
+    `,
+  });
 }

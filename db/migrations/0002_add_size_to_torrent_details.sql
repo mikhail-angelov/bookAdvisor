@@ -1,1 +1,0 @@
-ALTER TABLE `torrent_details` ADD `size` text;

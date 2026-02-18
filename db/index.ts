@@ -3,14 +3,7 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as path from "path";
 import * as schema from "./schema";
-import {
-  torrents,
-  torrentDetails,
-  crawlHistory,
-  users,
-  crawl,
-  userAnnotation,
-} from "./schema";
+import { crawlHistory, user, crawl, userAnnotation, book } from "./schema";
 
 export type DbType = Database.Database;
 
@@ -57,7 +50,7 @@ async function initProdDatabase(): Promise<void> {
   dbInstance = new Database(dbPath);
 
   // Enable WAL mode for better performance
-  dbInstance.pragma("journal_mode = WAL");
+  // dbInstance.pragma("journal_mode = WAL");
 
   db = drizzle(dbInstance);
 
@@ -105,7 +98,7 @@ export async function getDbAsync(): Promise<ReturnType<typeof drizzle>> {
     return await initializationPromise;
   }
   // Determine default environment
-  const defaultEnv = process.env.NODE_ENV === 'test' ? 'test' : 'prod';
+  const defaultEnv = process.env.NODE_ENV === "test" ? "test" : "prod";
   // Create initialization promise
   initializationPromise = initDatabase(defaultEnv);
   try {
@@ -139,18 +132,16 @@ export function closeDatabase(): void {
 }
 
 // Re-export schema and types
-export { torrents, torrentDetails, crawlHistory, users, crawl, userAnnotation };
+export { book, crawlHistory, user, crawl, userAnnotation };
 export type {
-  Torrent,
-  NewTorrent,
-  TorrentDetail,
-  NewTorrentDetail,
+  Book,
+  NewBook,
   CrawlHistory,
   NewCrawlHistory,
   User,
   NewUser,
-  CrawlRecord,
-  NewCrawlRecord,
+  Crawl,
+  NewCrawl,
   UserAnnotation,
   NewUserAnnotation,
 } from "./schema";
