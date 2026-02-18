@@ -16,7 +16,7 @@ export function TorrentTable({
   loading,
 }: TorrentTableProps) {
   const getAnnotation = (topicId: string) => {
-    return annotations.find((a) => a.torrent_id === topicId);
+    return annotations.find((a) => a.torrentId === topicId);
   };
 
   if (loading) {
@@ -113,7 +113,7 @@ export function TorrentTable({
           </thead>
           <tbody className="divide-y divide-gray-100">
             {torrents.map((torrent) => {
-              const annotation = getAnnotation(torrent.topic_id);
+               const annotation = getAnnotation(torrent.topicId);
               return (
                 <tr
                   key={torrent.id}
@@ -131,16 +131,16 @@ export function TorrentTable({
                       >
                         {torrent.title}
                       </span>
-                      {annotation?.read_status &&
-                        annotation.read_status !== "unread" && (
+                       {annotation?.readStatus &&
+                        annotation.readStatus !== "unread" && (
                           <span
                             className={`flex-shrink-0 px-1.5 py-0.5 rounded text-xs font-medium ${
-                              annotation.read_status === "reading"
+                              annotation.readStatus === "reading"
                                 ? "bg-yellow-100 text-yellow-700"
                                 : "bg-green-100 text-green-700"
                             }`}
                           >
-                            {annotation.read_status === "reading" ? "📖" : "✓"}
+                            {annotation.readStatus === "reading" ? "📖" : "✓"}
                           </span>
                         )}
                     </div>

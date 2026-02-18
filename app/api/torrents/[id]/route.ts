@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTorrentById, getTorrentDetailsByTorrentId } from "@/db/queries";
+import { getTorrentByTopicId, getTorrentDetailsByTorrentId } from "@/db/queries";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } },
 ) {
   try {
-    const torrent = await getTorrentById(params.id);
+    const torrent = await getTorrentByTopicId(params.id);
 
     if (!torrent) {
       return NextResponse.json({ error: "Torrent not found" }, { status: 404 });
@@ -16,28 +16,28 @@ export async function GET(
 
     const result = {
       ...torrent,
-      details_url: details?.url ?? null,
+      detailsUrl: details?.url ?? null,
       description: details?.description ?? null,
       category: details?.category ?? null,
-      forum_name: details?.forumName ?? null,
-      registered_until: details?.registeredUntil ?? null,
-      details_seeders: details?.seeders ?? null,
-      last_checked: details?.lastChecked ?? null,
-      magnet_link: details?.magnetLink ?? null,
-      torrent_file: details?.torrentFile ?? null,
-      details_size: details?.size ?? null,
-      author_name: details?.authorName ?? null,
-      author_posts: details?.authorPosts ?? null,
-      topic_title: details?.topicTitle ?? null,
+      forumName: details?.forumName ?? null,
+      registeredUntil: details?.registeredUntil ?? null,
+      detailsSeeders: details?.seeders ?? null,
+      lastChecked: details?.lastChecked ?? null,
+      magnetLink: details?.magnetLink ?? null,
+      torrentFile: details?.torrentFile ?? null,
+      detailsSize: details?.size ?? null,
+      authorName: details?.authorName ?? null,
+      authorPosts: details?.authorPosts ?? null,
+      topicTitle: details?.topicTitle ?? null,
       year: details?.year ?? null,
-      author_first_name: details?.authorFirstName ?? null,
-      author_last_name: details?.authorLastName ?? null,
+      authorFirstName: details?.authorFirstName ?? null,
+      authorLastName: details?.authorLastName ?? null,
       performer: details?.performer ?? null,
       series: details?.series ?? null,
-      book_number: details?.bookNumber ?? null,
+      bookNumber: details?.bookNumber ?? null,
       genre: details?.genre ?? null,
-      edition_type: details?.editionType ?? null,
-      audio_codec: details?.audioCodec ?? null,
+      editionType: details?.editionType ?? null,
+      audioCodec: details?.audioCodec ?? null,
       bitrate: details?.bitrate ?? null,
       duration: details?.duration ?? null,
     };

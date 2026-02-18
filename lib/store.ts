@@ -2,58 +2,58 @@ import { create } from 'zustand';
 
 export interface Torrent {
   id: string;
-  topic_id: string;
+  topicId: string;
   url: string;
   title: string;
-  forum_id: number;
+  forumId: number;
   size: string;
   seeds: number;
   leechers: number;
   downloads: number;
-  comments_count: number;
-  last_comment_date: string;
+  commentsCount: number;
+  lastCommentDate: string;
   author: string;
-  created_at: string;
-  last_updated: string;
+  createdAt: string;
+  lastUpdated: string;
   status: string;
   // Optional detailed fields from topic page
-  details_url?: string | null;
+  detailsUrl?: string | null;
   description?: string | null;
   category?: string | null;
-  forum_name?: string | null;
-  registered_until?: string | null;
-  details_seeders?: number | null;
-  last_checked?: string | null;
-  magnet_link?: string | null;
-  torrent_file?: string | null;
-  details_size?: string | null;
-  author_name?: string | null;
-  author_posts?: number | null;
-  topic_title?: string | null;
+  forumName?: string | null;
+  registeredUntil?: string | null;
+  detailsSeeders?: number | null;
+  lastChecked?: string | null;
+  magnetLink?: string | null;
+  torrentFile?: string | null;
+  detailsSize?: string | null;
+  authorName?: string | null;
+  authorPosts?: number | null;
+  topicTitle?: string | null;
   year?: number | null;
-  author_first_name?: string | null;
-  author_last_name?: string | null;
+  authorFirstName?: string | null;
+  authorLastName?: string | null;
   performer?: string | null;
   series?: string | null;
-  book_number?: string | null;
+  bookNumber?: string | null;
   genre?: string | null;
-  edition_type?: string | null;
-  audio_codec?: string | null;
+  editionType?: string | null;
+  audioCodec?: string | null;
   bitrate?: string | null;
   duration?: string | null;
 }
 
 export interface UserAnnotation {
   id: string;
-  user_id: string;
-  torrent_id: string | null;
+  userId: string;
+  torrentId: string | null;
   rating: number | null;
   annotation: string | null;
-  read_status: string;
-  started_at: string | null;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string | null;
+  readStatus: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
 }
 
 export interface User {
@@ -122,11 +122,11 @@ export const useAppStore = create<AppState>((set) => ({
   })),
   updateAnnotation: (torrentId, updates) => set((state) => ({
     annotations: state.annotations.map(a => 
-      a.torrent_id === torrentId ? { ...a, ...updates } : a
+       a.torrentId === torrentId ? { ...a, ...updates } : a
     )
   })),
   removeAnnotation: (torrentId) => set((state) => ({
-    annotations: state.annotations.filter(a => a.torrent_id !== torrentId)
+       annotations: state.annotations.filter(a => a.torrentId !== torrentId)
   })),
   
   // Filters

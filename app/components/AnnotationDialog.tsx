@@ -24,7 +24,7 @@ export function AnnotationDialog({
   const [activeTab, setActiveTab] = useState<Tab>('details');
   const [rating, setRating] = useState(annotation?.rating || 0);
   const [note, setNote] = useState(annotation?.annotation || '');
-  const [readStatus, setReadStatus] = useState(annotation?.read_status || 'unread');
+  const [readStatus, setReadStatus] = useState(annotation?.readStatus || 'unread');
   const [torrent, setTorrent] = useState<Torrent>(initialTorrent);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
@@ -32,11 +32,11 @@ export function AnnotationDialog({
   useEffect(() => {
     const fetchDetails = async () => {
       // If we already have detailed fields, skip fetch
-      if (torrent.details_url !== undefined) return;
+      if (torrent.detailsUrl !== undefined) return;
       
       setLoadingDetails(true);
       try {
-        const response = await fetch(`/api/torrents/${torrent.topic_id}`);
+        const response = await fetch(`/api/torrents/${torrent.topicId}`);
         if (response.ok) {
           const data = await response.json();
           setTorrent(data);
@@ -49,7 +49,7 @@ export function AnnotationDialog({
     };
 
     fetchDetails();
-  }, [torrent.topic_id]);
+  }, [torrent.topicId]);
 
   const handleSave = () => {
     onSave({ rating, annotation: note, readStatus });
@@ -107,23 +107,23 @@ export function AnnotationDialog({
           </div>
           <div>
             <span className="text-gray-500 block">Comments</span>
-            <span className="font-medium text-gray-900">{torrent.comments_count}</span>
+             <span className="font-medium text-gray-900">{torrent.commentsCount}</span>
           </div>
           <div>
             <span className="text-gray-500 block">Last Comment</span>
-            <span className="font-medium text-gray-900">{torrent.last_comment_date}</span>
+             <span className="font-medium text-gray-900">{torrent.lastCommentDate}</span>
           </div>
         </div>
 
         {/* Detailed fields (if available) */}
-        {(torrent.description || torrent.details_size || torrent.magnet_link) && (
+        {(torrent.description || torrent.detailsSize || torrent.magnetLink) && (
           <div className="border-t border-gray-100 pt-4">
             <h4 className="font-medium text-gray-900 mb-3">Extended Details</h4>
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {torrent.details_size && (
+               {torrent.detailsSize && (
                 <div>
                   <span className="text-gray-500 block">Details Size</span>
-                  <span className="font-medium text-gray-900">{torrent.details_size}</span>
+                   <span className="font-medium text-gray-900">{torrent.detailsSize}</span>
                 </div>
               )}
               {torrent.category && (
@@ -132,10 +132,10 @@ export function AnnotationDialog({
                   <span className="font-medium text-gray-900">{torrent.category}</span>
                 </div>
               )}
-              {torrent.forum_name && (
+               {torrent.forumName && (
                 <div>
                   <span className="text-gray-500 block">Forum</span>
-                  <span className="font-medium text-gray-900">{torrent.forum_name}</span>
+                   <span className="font-medium text-gray-900">{torrent.forumName}</span>
                 </div>
               )}
               {torrent.year && (
@@ -144,10 +144,10 @@ export function AnnotationDialog({
                   <span className="font-medium text-gray-900">{torrent.year}</span>
                 </div>
               )}
-              {torrent.author_name && (
+               {torrent.authorName && (
                 <div>
                   <span className="text-gray-500 block">Author (profile)</span>
-                  <span className="font-medium text-gray-900">{torrent.author_name}</span>
+                   <span className="font-medium text-gray-900">{torrent.authorName}</span>
                 </div>
               )}
               {torrent.performer && (
@@ -173,12 +173,12 @@ export function AnnotationDialog({
               </div>
             )}
             
-            {torrent.magnet_link && (
+             {torrent.magnetLink && (
               <div className="mt-4">
                 <span className="text-gray-500 block text-sm mb-1">Magnet Link</span>
                 <div className="text-sm text-blue-600 truncate bg-gray-50 rounded p-2">
-                  <a href={torrent.magnet_link} target="_blank" rel="noopener noreferrer" className="hover:underline">
-                    {torrent.magnet_link}
+                   <a href={torrent.magnetLink} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                     {torrent.magnetLink}
                   </a>
                 </div>
               </div>

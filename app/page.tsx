@@ -324,7 +324,7 @@ function HomeContent() {
     if (!selectedTorrent || !user) return;
 
     try {
-      const res = await fetch(`/api/annotations/${selectedTorrent.topic_id}`, {
+      const res = await fetch(`/api/annotations/${selectedTorrent.topicId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
@@ -333,10 +333,10 @@ function HomeContent() {
       if (result.data) {
         // Update local annotations
         const existing = annotations.find(
-          (a) => a.torrent_id === selectedTorrent.topic_id,
+          (a) => a.torrentId === selectedTorrent.topicId,
         );
         if (existing) {
-          store.updateAnnotation(selectedTorrent.topic_id, result.data);
+          store.updateAnnotation(selectedTorrent.topicId, result.data);
         } else {
           store.addAnnotation(result.data);
         }
@@ -351,10 +351,10 @@ function HomeContent() {
     if (!selectedTorrent || !user) return;
 
     try {
-      await fetch(`/api/annotations/${selectedTorrent.topic_id}`, {
+      await fetch(`/api/annotations/${selectedTorrent.topicId}`, {
         method: "DELETE",
       });
-      store.removeAnnotation(selectedTorrent.topic_id);
+      store.removeAnnotation(selectedTorrent.topicId);
       setShowAnnotationDialog(false);
     } catch (err) {
       console.error("Error deleting annotation:", err);
@@ -375,13 +375,13 @@ function HomeContent() {
   const myBooks = useMemo(() => {
     if (activeTab !== "mybooks") return torrents;
     // js-set-map-lookups: Use Set for O(1) lookups
-    const annotatedIds = new Set(annotations.map((a) => a.torrent_id));
-    return torrents.filter((t) => annotatedIds.has(t.topic_id));
+    const annotatedIds = new Set(annotations.map((a) => a.torrentId));
+    return torrents.filter((t) => annotatedIds.has(t.topicId));
   }, [torrents, annotations, activeTab]);
 
   // Get annotation for a torrent
   const getAnnotation = useCallback((topicId: string) => {
-    return annotations.find((a) => a.torrent_id === topicId);
+    return annotations.find((a) => a.torrentId === topicId);
   }, [annotations]);
 
   const progress =
@@ -465,7 +465,7 @@ function HomeContent() {
       {showAnnotationDialog && selectedTorrent && user && (
         <AnnotationDialog
           torrent={selectedTorrent}
-          annotation={getAnnotation(selectedTorrent.topic_id)}
+          annotation={getAnnotation(selectedTorrent.topicId)}
           onSave={handleSaveAnnotation}
           onClose={() => setShowAnnotationDialog(false)}
           onDelete={handleDeleteAnnotation}
