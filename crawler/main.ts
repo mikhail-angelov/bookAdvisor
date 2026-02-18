@@ -249,13 +249,8 @@ async function processTorrentDetails(
     console.log(`Batch completed: ${successful} successful, ${results.length - successful} failed`);
     console.log(`Total progress: ${processedCount}/${pendingDetails.length} details processed, ${errorCount} errors`);
 
-    // Update crawl history with progress
-    // Note: torrentsFound in crawlHistory should be total seen so far
-    await repository.updateCrawlHistory(historyId, {
-      // We don't want to overwrite the total seen from forum pages
-      // but rather total processed if we had a separate field.
-      // For now, let's just keep it consistent.
-    });
+    // Total count of torrents discovered is already in the database
+    // No need to update history during detail processing unless we track detail progress specifically
 
     // Small delay between batches
     if (i + batchSize < pendingDetails.length) {

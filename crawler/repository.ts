@@ -5,8 +5,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { eq, and, sql } from 'drizzle-orm';
 import { getDbAsync } from '../db/index';
-import { crawl, crawlHistory } from '../db/index';
-import type { Crawl, NewCrawl, NewCrawlHistory } from '../db/schema';
+import { crawl, crawlHistory, book } from '../db/index';
+import type { Crawl, NewCrawl, NewCrawlHistory, NewBook } from '../db/schema';
 import { CrawlStatus, CrawlType } from './types';
 
 /**
@@ -86,7 +86,7 @@ export async function updateCrawlHistory(
  */
 export async function getPendingCrawlRecords(
   type?: CrawlType,
-  limit: number = 100
+  limit?: number
 ): Promise<Crawl[]> {
   const db = await getDbAsync();
   
@@ -95,10 +95,15 @@ export async function getPendingCrawlRecords(
     conditions.push(eq(crawl.type, type));
   }
   
-  return await db.select()
+  const query = db.select()
     .from(crawl)
-    .where(and(...conditions))
-    .limit(limit);
+    .where(and(...conditions));
+    
+  if (limit) {
+    return await query.limit(limit);
+  }
+  
+  return await query;
 }
 
 /**
@@ -124,17 +129,8 @@ export async function createTorrentDetailCrawlRecords(
   const db = await getDbAsync();
   const now = new Date().toISOString();
   
-  // To avoid individual checks, we can use a subquery or a single IN query to find existing URLs
-  const existingRecords = await db.select({ url: crawl.url })
-    .from(crawl)
-    .where(eq(crawl.url, torrentUrls[0])); // This is just for one, better to use IN if many
-  
-  // A better way with Drizzle is to just try inserting and ignore conflicts if unique constraint exists
-  // For SQLite, we can't easily do ON CONFLICT in Drizzle's insert without custom SQL if not supported
-  
   const newRecords: NewCrawl[] = [];
   for (const url of torrentUrls) {
-    // We still do a quick check to avoid unnecessary inserts if many are duplicates
     const existing = await getCrawlRecordByUrl(url);
     if (!existing) {
       newRecords.push({
@@ -160,14 +156,8 @@ export async function createTorrentDetailCrawlRecords(
  */
 export async function getCrawlRecordByUrl(url: string): Promise<Crawl | null> {
   const db = await getDbAsync();
-  
   const results = await db.select().from(crawl).where(eq(crawl.url, url));
-  
-  if (results.length === 0) {
-    return null;
-  }
-  
-  return results[0];
+  return results.length === 0 ? null : results[0];
 }
 
 /**
@@ -180,8 +170,6 @@ export async function getCrawlStatistics(): Promise<{
   error: number;
 }> {
   const db = await getDbAsync();
-  
-  // Using custom SQL for efficient counting
   const results = await db.select({
     status: crawl.status,
     count: sql<number>`count(*)`
@@ -189,13 +177,7 @@ export async function getCrawlStatistics(): Promise<{
   .from(crawl)
   .groupBy(crawl.status);
   
-  const stats = {
-    total: 0,
-    pending: 0,
-    completed: 0,
-    error: 0
-  };
-  
+  const stats = { total: 0, pending: 0, completed: 0, error: 0 };
   results.forEach(r => {
     const count = Number(r.count);
     stats.total += count;
@@ -212,7 +194,6 @@ export async function getCrawlStatistics(): Promise<{
  */
 export async function countTorrentLinks(): Promise<number> {
   const db = await getDbAsync();
-  
   const result = await db.select({
     count: sql<number>`count(*)`
   })
@@ -248,4 +229,56 @@ export async function markCrawlRecordFailed(
     status: CrawlStatus.ERROR,
     htmlBody: error
   });
+}
+
+/**
+ * Get all completed crawls
+ */
+export async function getCompletedCrawls(options: { 
+  type?: CrawlType | string;
+  excludeProcessed?: boolean;
+} = {}): Promise<Crawl[]> {
+  const db = await getDbAsync();
+  const conditions = [eq(crawl.status, CrawlStatus.COMPLETED)];
+  if (options.type) conditions.push(eq(crawl.type, options.type));
+  
+  if (options.excludeProcessed) {
+    const processedIdsSelect = db.select({ id: book.crawlId })
+      .from(book)
+      .where(sql`${book.crawlId} IS NOT NULL`);
+      
+    return await db.select()
+      .from(crawl)
+      .where(and(
+        ...conditions,
+        sql`${crawl.id} NOT IN (${processedIdsSelect})`
+      ));
+  }
+  
+  return await db.select().from(crawl).where(and(...conditions));
+}
+
+/**
+ * Batch insert or update books
+ */
+export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
+  if (books.length === 0) return;
+  const db = await getDbAsync();
+  
+  await db.transaction(async (tx) => {
+    for (const b of books) {
+      const existing = await tx.select()
+        .from(book)
+        .where(eq(book.url, b.url || ''))
+        .limit(1);
+        
+      if (existing.length > 0) {
+        await tx.update(book).set(b).where(eq(book.id, existing[0].id));
+      } else {
+        await tx.insert(book).values(b);
+      }
+    }
+  });
+  
+  console.log(`Successfully processed ${books.length} books`);
 }

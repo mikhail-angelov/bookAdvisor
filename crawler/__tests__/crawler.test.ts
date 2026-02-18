@@ -5,8 +5,8 @@
 import { main } from '../main';
 import { CrawlConfig } from '../types';
 import { initDatabase, closeDatabase } from '../../db/index';
-import { fixture as forumFixture } from '../../__tests__/fixtures/torrents-page';
-import { fixture as detailsFixture } from '../../__tests__/fixtures/torrent-details';
+import { fixture as forumFixture } from './fixtures/torrents-page';
+import { fixture as detailsFixture } from './fixtures/torrent-details';
 
 // Mock the fetcher module
 jest.mock('../fetcher', () => ({

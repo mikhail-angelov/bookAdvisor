@@ -5,6 +5,7 @@
  */
 
 import { main } from './main';
+import { processCrawls } from './parser-service';
 import { CrawlConfig } from './types';
 
 function parseArgs(): CrawlConfig {
@@ -14,10 +15,22 @@ function parseArgs(): CrawlConfig {
   let concurrentRequests = 5;
   let retryAttempts = 3;
   let retryDelayMs = 1000;
+  let command: 'crawl' | 'parse' = 'crawl';
+  let forceReload = false;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     const nextArg = args[i + 1];
+
+    if (arg === 'parse') {
+      command = 'parse';
+      continue;
+    }
+
+    if (arg === '--force') {
+      forceReload = true;
+      continue;
+    }
 
     if (arg === '--help' || arg === '-h') {
       printHelp();
@@ -110,7 +123,11 @@ Standalone Rutracker Crawler
 ============================
 
 Usage:
-  node crawler/cli.ts [options]
+  node crawler/cli.ts [command] [options]
+
+Commands:
+  crawl (default)             Download new pages from Rutracker
+  parse                       Process already downloaded pages and fill books table
 
 Options:
   --pages, -p <number>        Number of forum pages to crawl (default: 1)
@@ -118,17 +135,31 @@ Options:
   --concurrent, -c <number>   Number of concurrent requests (default: 5)
   --retry-attempts, -r <number> Number of retry attempts for failed pages (default: 3)
   --retry-delay, -d <ms>      Delay between retries in milliseconds (default: 1000)
+  --force                     Force reload already processed records (for parse command)
   --help, -h                  Show this help message
 
 Examples:
   node crawler/cli.ts --pages 10
-  node crawler/cli.ts -p 5 --concurrent 3 --retry-attempts 5
+  node crawler/cli.ts parse
+  node crawler/cli.ts parse --force
   `);
 }
 
 async function run() {
   try {
     const config = parseArgs();
+    const args = process.argv.slice(2);
+    const isParseCommand = args.includes('parse');
+    const forceReload = args.includes('--force');
+
+    if (isParseCommand) {
+      console.log('Starting parser...');
+      console.log(`  Force reload: ${forceReload}`);
+      console.log('---');
+      await processCrawls(forceReload);
+      console.log('Parser completed successfully!');
+      return;
+    }
     
     console.log('Starting crawler with configuration:');
     console.log(`  Forum ID: ${config.forumId}`);
