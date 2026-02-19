@@ -64,7 +64,9 @@ export async function processCrawls(forceReload: boolean = false): Promise<void>
   // Map to store combined book data, keyed by URL
   const booksMap = new Map<string, NewBook>();
   
-  // 3. Parse detail pages (torrent-details)
+  // 3. Parse detail pages (torrent-details) - update existing books
+  const detailUpdates: Partial<NewBook>[] = [];
+  
   for (const crawl of detailCrawls) {
     if (!crawl.htmlBody) continue;
     
@@ -73,33 +75,17 @@ export async function processCrawls(forceReload: boolean = false): Promise<void>
     
     const details = detailParser.parse(crawl.htmlBody, topicId);
     
-    const existing = booksMap.get(crawl.url) || {
-      id: uuidv4(),
-      crawlId: crawl.id,
+    // Add URL to the details for updating
+    detailUpdates.push({
       url: crawl.url,
-      title: '',
-      category: 'Российская фантастика',
-      createdAt: new Date().toISOString(),
-    } as NewBook;
-    
-    // Merge details
-    booksMap.set(crawl.url, {
-      ...existing,
       ...details,
-      // Ensure we don't overwrite if details has empty fields but existing has data
-      title: details.title || details.topicTitle || existing.title || '',
-      category: details.category || existing.category || 'Российская фантастика',
-    } as NewBook);
+    });
   }
   
-  // 4. Batch upsert into database
-  const booksToUpsert = Array.from(booksMap.values());
-  
-  if (booksToUpsert.length > 0) {
-    await batchUpsertBooks(booksToUpsert);
-    console.log(`Processed and saved ${booksToUpsert.length} books.`);
-  } else {
-    console.log('No books extracted from crawls.');
+  // 4. Update books with details
+  if (detailUpdates.length > 0) {
+    await updateBooks(detailUpdates);
+    console.log(`Updated ${detailUpdates.length} books with details.`);
   }
 
   // 5. Parse forum pages (torrents-page) and update status
@@ -117,17 +103,12 @@ export async function processCrawls(forceReload: boolean = false): Promise<void>
       if (!b.url) continue;
       updateBooksMap.set(b.url, b as Partial<NewBook>);
     }
+  }
 
-      const booksToUpdate = Array.from(updateBooksMap.values());
+  const booksToUpdate = Array.from(updateBooksMap.values());
   
-  if (booksToUpsert.length > 0) {
+  if (booksToUpdate.length > 0) {
     await updateBooks(booksToUpdate);
-    console.log(`Processed and saved ${booksToUpsert.length} books.`);
-  } else {
-    console.log('No books extracted from crawls.');
+    console.log(`Updated ${booksToUpdate.length} books from forum pages.`);
   }
-    
-  }
-
-
 }

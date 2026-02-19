@@ -183,6 +183,8 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       audioCodec: structuredData.audioCodec,
       bitrate: structuredData.bitrate,
       duration: structuredData.duration,
+      description: structuredData.description,
+      imageUrl: structuredData.imageUrl,
     };
   }
   
@@ -199,7 +201,15 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       audioCodec: '',
       bitrate: '',
       duration: '',
+      description: '',
+      imageUrl: '',
     };
+    
+    // Extract image URL from postImg elements
+    const $img = postBody.find('.postImg');
+    if ($img.length > 0) {
+      result.imageUrl = $img.attr('title') || '';
+    }
     
     postBody.find('.post-b').each((_, el) => {
       const $label = $(el);
@@ -225,6 +235,17 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       else if (labelText.includes('Аудиокодек')) result.audioCodec = value;
       else if (labelText.includes('Битрейт')) result.bitrate = value;
       else if (labelText.includes('Время звучания')) result.duration = value;
+      else if (labelText.includes('Описание')) {
+        // Description might be multi-line, collect all text until next .post-b or end
+        let desc = value;
+        let next = $label[0].nextSibling;
+        while (next) {
+          if (next.nodeType === 1 && $(next).hasClass('post-b')) break;
+          if (next.nodeType === 3) desc += (next as any).data;
+          next = next.nextSibling;
+        }
+        result.description = desc.trim();
+      }
     });
     
     return result;

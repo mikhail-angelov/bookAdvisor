@@ -88,41 +88,83 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                 </div>
             </header>
 
-            <main className="max-w-4xl mx-auto px-6 py-10">
+            <main className="max-w-6xl mx-auto px-6 py-10">
                 <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-white">
                     <div className="md:flex">
-                        {/* Book Info */}
+                        {/* Book Info with Image */}
                         <div className="p-8 md:p-12 md:w-2/3 border-b md:border-b-0 md:border-r border-gray-50">
-                            <div className="mb-6">
-                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100 mb-4">
-                                    {book.category}
-                                </span>
-                                <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight mb-2">
-                                    {book.title}
-                                </h2>
-                                <p className="text-lg text-gray-500 font-medium">by {book.authorName || 'Unknown Author'}</p>
+                            <div className="flex flex-col md:flex-row gap-8 mb-8">
+                                {/* Book Cover Image */}
+                                {book.imageUrl && (
+                                    <div className="md:w-1/3">
+                                        <div className="bg-gray-100 rounded-2xl overflow-hidden shadow-lg border border-gray-200">
+                                            <img
+                                                src={book.imageUrl}
+                                                alt={book.title}
+                                                className="w-full h-auto object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).style.display = 'none';
+                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `
+                                                        <div class="w-full h-64 flex items-center justify-center bg-gray-100 text-gray-400">
+                                                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                            </svg>
+                                                        </div>
+                                                    `;
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                {/* Book Metadata */}
+                                <div className={`${book.imageUrl ? 'md:w-2/3' : 'w-full'}`}>
+                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100 mb-4">
+                                        {book.category}
+                                    </span>
+                                    <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight mb-2">
+                                        {book.title}
+                                    </h2>
+                                    <p className="text-lg text-gray-500 font-medium">by {book.authorName || 'Unknown Author'}</p>
+                                    
+                                    <div className="grid grid-cols-2 gap-6 mt-6">
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Series</h4>
+                                            <p className="font-semibold text-gray-700">{book.series || 'None'}</p>
+                                            {book.bookNumber && <p className="text-sm text-gray-500">Book #{book.bookNumber}</p>}
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Year</h4>
+                                            <p className="font-semibold text-gray-700">{book.year || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Genre</h4>
+                                            <p className="font-semibold text-gray-700">{book.genre || 'N/A'}</p>
+                                        </div>
+                                        <div>
+                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Size / Downloads</h4>
+                                            <p className="font-semibold text-gray-700">{book.size} / {book.downloads}</p>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-6 mb-8">
-                                <div>
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Series</h4>
-                                    <p className="font-semibold text-gray-700">{book.series || 'None'}</p>
-                                    {book.bookNumber && <p className="text-sm text-gray-500">Book #{book.bookNumber}</p>}
+                            {/* Description */}
+                            {book.description && (
+                                <div className="mb-8">
+                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Description
+                                    </h3>
+                                    <div className="bg-gray-50 rounded-2xl p-6">
+                                        <p className="text-gray-700 leading-relaxed whitespace-pre-line">{book.description}</p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Year</h4>
-                                    <p className="font-semibold text-gray-700">{book.year || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Genre</h4>
-                                    <p className="font-semibold text-gray-700">{book.genre || 'N/A'}</p>
-                                </div>
-                                <div>
-                                    <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Size / Downloads</h4>
-                                    <p className="font-semibold text-gray-700">{book.size} / {book.downloads}</p>
-                                </div>
-                            </div>
+                            )}
 
+                            {/* Topic Link */}
                             <div className="bg-gray-50 rounded-2xl p-6">
                                 <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
                                     <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -64,6 +64,8 @@ export const book = sqliteTable("books", {
   audioCodec: text("audio_codec"),
   bitrate: text("bitrate"),
   duration: text("duration"),
+  description: text("description"),
+  imageUrl: text("image_url"),
   createdAt: text("created_at"),
 });
 

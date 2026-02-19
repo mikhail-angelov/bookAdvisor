@@ -51,6 +51,8 @@ describe('RutrackerDetailsParser', () => {
     expect(book.performer).toBe('CHUGA');
     expect(book.audioCodec).toBe('MP3');
     expect(book.bitrate).toBe('88 kbps');
+    expect(book.description).toContain('Он здесь чужой');
+    expect(book.imageUrl).toBe('https://i125.fastpic.org/big/2025/0828/53/595d9c7866a0da2cc445a823b3984453.jpeg');
   });
 
   it('should handle missing topicId gracefully', () => {

@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import Database from "better-sqlite3";
 import * as path from "path";
+import * as fs from "fs";
 import * as schema from "./schema";
 import { crawlHistory, user, crawl, userAnnotation, book } from "./schema";
 
@@ -45,7 +46,13 @@ export async function initDatabase(
  * Initialize production database (file-based SQLite using better-sqlite3)
  */
 async function initProdDatabase(): Promise<void> {
-  const dbPath = path.join(process.cwd(), "prod.db");
+  // Create data directory if it doesn't exist
+  const dataDir = path.join(process.cwd(), "data");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+  
+  const dbPath = path.join(dataDir, "prod.db");
 
   dbInstance = new Database(dbPath);
 
