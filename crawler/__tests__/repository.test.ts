@@ -131,7 +131,7 @@ describe('Repository', () => {
     it('should filter by type', async () => {
       const forumId = 2387;
       await repository.initializeCrawlRecords(forumId, 1, CrawlType.FORUM_PAGE);
-      await repository.createTorrentDetailCrawlRecords([
+      await repository.createFreshTorrentDetailCrawlRecords([
         'https://rutracker.org/forum/viewtopic.php?t=123456'
       ]);
       
@@ -153,7 +153,7 @@ describe('Repository', () => {
         'https://rutracker.org/forum/viewtopic.php?t=789012'
       ];
       
-      const recordIds = await repository.createTorrentDetailCrawlRecords(torrentUrls);
+      const recordIds = await repository.createFreshTorrentDetailCrawlRecords(torrentUrls);
       
       expect(recordIds).toHaveLength(2);
       

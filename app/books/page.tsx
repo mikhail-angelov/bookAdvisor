@@ -1,92 +1,152 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Book } from '@/db/schema';
 import BookCard from '@/components/BookCard';
 import { toast } from 'sonner';
 
+type SortColumn = 'title' | 'genre' | 'seeds' | 'downloads' | 'lastCommentDate';
+type SortDir = 'asc' | 'desc';
+
+const PAGE_LIMIT = 50;
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+    if (!active) return (
+        <svg className="w-3 h-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16V4m0 0L3 8m4-4l4 4M17 8v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+    );
+    return dir === 'asc' ? (
+        <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+        </svg>
+    ) : (
+        <svg className="w-3 h-3 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+    );
+}
+
 function BooksContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    // State
     const [books, setBooks] = useState<Book[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isMoreLoading, setIsMoreLoading] = useState(false);
-    const [hasMore, setHasMore] = useState(true);
     const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [total, setTotal] = useState(0);
+    const [genres, setGenres] = useState<string[]>([]);
 
-    // Search and Filter State
     const [search, setSearch] = useState(searchParams.get('q') || '');
-    const [category, setCategory] = useState(searchParams.get('category') || '');
+    const [genre, setGenre] = useState(searchParams.get('genre') || '');
+    const [sortBy, setSortBy] = useState<SortColumn>(
+        (searchParams.get('sortBy') as SortColumn) || 'lastCommentDate'
+    );
+    const [sortDir, setSortDir] = useState<SortDir>(
+        (searchParams.get('sortDir') as SortDir) || 'desc'
+    );
 
-    // Refs
-    const observer = useRef<IntersectionObserver | null>(null);
-    const lastBookElementRef = useCallback((node: HTMLDivElement | null) => {
-        if (isLoading || isMoreLoading) return;
-        if (observer.current) observer.current.disconnect();
+    // Load genres once on mount
+    useEffect(() => {
+        fetch('/api/books/genres')
+            .then(r => r.json())
+            .then(data => setGenres(data.genres || []))
+            .catch(() => {});
+    }, []);
 
-        observer.current = new IntersectionObserver(entries => {
-            if (entries[0].isIntersecting && hasMore) {
-                setPage(prevPage => prevPage + 1);
-            }
-        });
-
-        if (node) observer.current.observe(node);
-    }, [isLoading, isMoreLoading, hasMore]);
-
-    // Fetch Books
-    const fetchBooks = async (pageNum: number, isNewSearch: boolean = false) => {
+    const fetchBooks = useCallback(async (
+        pageNum: number,
+        q: string,
+        g: string,
+        col: SortColumn,
+        dir: SortDir,
+    ) => {
+        setIsLoading(true);
         try {
             const params = new URLSearchParams();
-            if (search) params.set('q', search);
-            if (category) params.set('category', category);
+            if (q) params.set('q', q);
+            if (g) params.set('genre', g);
             params.set('page', pageNum.toString());
-            params.set('limit', '20');
+            params.set('limit', PAGE_LIMIT.toString());
+            params.set('sortBy', col);
+            params.set('sortDir', dir);
 
             const res = await fetch(`/api/books?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch books');
 
             const data = await res.json();
-
-            if (isNewSearch) {
-                setBooks(data.books);
-            } else {
-                setBooks(prev => [...prev, ...data.books]);
-            }
-
-            setHasMore(data.pagination.hasMore);
-        } catch (error) {
+            setBooks(data.books);
+            setTotalPages(data.pagination.totalPages);
+            setTotal(data.pagination.total);
+        } catch {
             toast.error('Error loading books');
         } finally {
             setIsLoading(false);
-            setIsMoreLoading(false);
         }
-    };
+    }, []);
 
-    // Handle Search/Filter changes
+    // Sync URL and fetch whenever any filter/sort/page changes
     useEffect(() => {
-        setIsLoading(true);
-        setPage(1);
-        fetchBooks(1, true);
-
-        // Update URL
         const params = new URLSearchParams();
         if (search) params.set('q', search);
-        if (category) params.set('category', category);
+        if (genre) params.set('genre', genre);
+        if (sortBy !== 'lastCommentDate') params.set('sortBy', sortBy);
+        if (sortDir !== 'desc') params.set('sortDir', sortDir);
+        if (page > 1) params.set('page', page.toString());
+        const qs = params.toString();
+        router.replace(`/books${qs ? `?${qs}` : ''}`, { scroll: false });
 
-        const queryString = params.toString();
-        router.replace(`/books${queryString ? `?${queryString}` : ''}`, { scroll: false });
-    }, [search, category]);
+        fetchBooks(page, search, genre, sortBy, sortDir);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [page, search, genre, sortBy, sortDir]);
 
-    // Handle Load More
-    useEffect(() => {
-        if (page > 1) {
-            setIsMoreLoading(true);
-            fetchBooks(page);
+    const handleSort = (col: SortColumn) => {
+        if (col === sortBy) {
+            setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortBy(col);
+            setSortDir('desc');
         }
-    }, [page]);
+        setPage(1);
+    };
+
+    const handleSearch = (val: string) => {
+        setSearch(val);
+        setPage(1);
+    };
+
+    const handleGenre = (val: string) => {
+        setGenre(val);
+        setPage(1);
+    };
+
+    const ThCell = ({ col, label, className = '' }: { col: SortColumn; label: string; className?: string }) => (
+        <th
+            className={`py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide select-none cursor-pointer hover:text-blue-600 transition-colors ${className}`}
+            onClick={() => handleSort(col)}
+        >
+            <span className="inline-flex items-center gap-1">
+                {label}
+                <SortIcon active={sortBy === col} dir={sortDir} />
+            </span>
+        </th>
+    );
+
+    const pageNumbers = () => {
+        const pages: (number | '…')[] = [];
+        if (totalPages <= 7) {
+            for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+            pages.push(1);
+            if (page > 3) pages.push('…');
+            for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+            if (page < totalPages - 2) pages.push('…');
+            pages.push(totalPages);
+        }
+        return pages;
+    };
 
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
@@ -113,20 +173,20 @@ function BooksContent() {
                                 type="text"
                                 placeholder="Search by title, author, series..."
                                 value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => handleSearch(e.target.value)}
                                 className="w-full pl-11 pr-4 py-3 bg-gray-100/50 border-none rounded-2xl focus:ring-2 focus:ring-blue-500 transition-all text-sm font-medium"
                             />
                         </div>
 
                         <select
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            className="bg-gray-100/50 border-none rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer"
+                            value={genre}
+                            onChange={(e) => handleGenre(e.target.value)}
+                            className="bg-gray-100/50 border-none rounded-2xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer max-w-[200px]"
                         >
-                            <option value="">All Categories</option>
-                            <option value="Российская фантастика">Фантастика</option>
-                            <option value="Зарубежная фантастика">Зарубежная</option>
-                            <option value="Детективы, триллеры">Детективы</option>
+                            <option value="">All Genres</option>
+                            {genres.map(g => (
+                                <option key={g} value={g}>{g}</option>
+                            ))}
                         </select>
                     </div>
 
@@ -146,33 +206,75 @@ function BooksContent() {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-6 pt-8">
-                {isLoading && books.length === 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                        {[...Array(8)].map((_, i) => (
-                            <div key={i} className="bg-gray-200 animate-pulse rounded-2xl h-64" />
+                {isLoading ? (
+                    <div className="flex flex-col gap-2">
+                        {[...Array(10)].map((_, i) => (
+                            <div key={i} className="bg-gray-200 animate-pulse rounded h-10" />
                         ))}
                     </div>
                 ) : books.length > 0 ? (
                     <>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {books.map((book, index) => {
-                                const isLast = books.length === index + 1;
-                                return (
-                                    <div key={book.id} ref={isLast ? lastBookElementRef : null}>
-                                        <BookCard book={book} />
-                                    </div>
-                                );
-                            })}
+                        {/* Count */}
+                        <p className="text-xs text-gray-400 mb-3 font-medium">
+                            {total.toLocaleString()} books · page {page} of {totalPages}
+                        </p>
+
+                        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                            <table className="w-full text-sm">
+                                <thead>
+                                    <tr className="border-b border-gray-100 bg-gray-50">
+                                        <ThCell col="title" label="Title" className="text-left px-5" />
+                                        <ThCell col="genre" label="Genre" className="text-left px-4 hidden md:table-cell" />
+                                        <ThCell col="seeds" label="Seeds" className="text-center px-4 hidden sm:table-cell" />
+                                        <ThCell col="downloads" label="Downloads" className="text-center px-4 hidden sm:table-cell" />
+                                        <ThCell col="lastCommentDate" label="Last Comment" className="text-right px-5 hidden lg:table-cell" />
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-50">
+                                    {books.map((book) => (
+                                        <BookCard key={book.id} book={book} />
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
 
-                        {isMoreLoading && (
-                            <div className="flex justify-center mt-10">
-                                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                            </div>
-                        )}
+                        {/* Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-1 mt-8">
+                                <button
+                                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                                    disabled={page === 1}
+                                    className="px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    ‹ Prev
+                                </button>
 
-                        {!hasMore && (
-                            <p className="text-center text-gray-400 mt-12 font-medium">No more books to show</p>
+                                {pageNumbers().map((p, i) =>
+                                    p === '…' ? (
+                                        <span key={`ellipsis-${i}`} className="px-2 text-gray-400">…</span>
+                                    ) : (
+                                        <button
+                                            key={p}
+                                            onClick={() => setPage(p as number)}
+                                            className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                                                page === p
+                                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
+                                                    : 'text-gray-600 hover:bg-white hover:shadow-sm'
+                                            }`}
+                                        >
+                                            {p}
+                                        </button>
+                                    )
+                                )}
+
+                                <button
+                                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                                    disabled={page === totalPages}
+                                    className="px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-white hover:shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                >
+                                    Next ›
+                                </button>
+                            </div>
                         )}
                     </>
                 ) : (
@@ -183,7 +285,7 @@ function BooksContent() {
                             </svg>
                         </div>
                         <h3 className="text-xl font-bold text-gray-900">No books found</h3>
-                        <p className="text-gray-500">Try adjusting your search or category filter</p>
+                        <p className="text-gray-500">Try adjusting your search or genre filter</p>
                     </div>
                 )}
             </main>

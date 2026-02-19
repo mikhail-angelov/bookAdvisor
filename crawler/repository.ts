@@ -3,11 +3,14 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import chunk from 'lodash/chunk';
 import { eq, and, inArray, sql } from 'drizzle-orm';
 import { getDbAsync } from '../db/index';
 import { crawl, crawlHistory, book } from '../db/index';
 import type { Crawl, NewCrawl, NewCrawlHistory, NewBook } from '../db/schema';
 import { CrawlStatus, CrawlType } from './types';
+
+const CHUNK_SIZE = 500;
 
 /**
  * Initialize crawl records for forum pages.
@@ -124,31 +127,38 @@ export async function createFreshTorrentDetailCrawlRecords(
 
   const db = await getDbAsync();
   const now = new Date().toISOString();
+  const allNewIds: string[] = [];
 
-  // Fetch all existing URLs in one query
-  const existing = await db
-    .select({ url: crawl.url })
-    .from(crawl)
-    .where(inArray(crawl.url, torrentUrls));
+  for (const urlsChunk of chunk(torrentUrls, CHUNK_SIZE)) {
+    // Find which URLs already exist
+    const existing = await db
+      .select({ url: crawl.url })
+      .from(crawl)
+      .where(inArray(crawl.url, urlsChunk));
 
-  const existingUrls = new Set(existing.map(r => r.url));
+    const existingUrls = new Set(existing.map(r => r.url));
 
-  const newRecords: NewCrawl[] = torrentUrls
-    .filter(url => !existingUrls.has(url))
-    .map(url => ({
-      id: uuidv4(),
-      url,
-      status: CrawlStatus.PENDING,
-      type: CrawlType.TORRENT_DETAILS,
-      createdAt: now,
-    }));
+    const newRecords: NewCrawl[] = urlsChunk
+      .filter(url => !existingUrls.has(url))
+      .map(url => ({
+        id: uuidv4(),
+        url,
+        status: CrawlStatus.PENDING,
+        type: CrawlType.TORRENT_DETAILS,
+        createdAt: now,
+      }));
 
-  if (newRecords.length > 0) {
-    await db.insert(crawl).values(newRecords);
-    console.log(`Created ${newRecords.length} detail crawl records`);
+    if (newRecords.length > 0) {
+      await db.insert(crawl).values(newRecords);
+      allNewIds.push(...newRecords.map(r => r.id));
+    }
   }
 
-  return newRecords.map(r => r.id);
+  if (allNewIds.length > 0) {
+    console.log(`Created ${allNewIds.length} detail crawl records`);
+  }
+
+  return allNewIds;
 }
 
 /**
@@ -223,52 +233,61 @@ export async function getCompletedCrawls(options: {
 }
 
 /**
- * Batch insert or update books.
- * Uses a single SELECT to find existing URLs, then splits into inserts and updates.
+ * Batch insert books, processing in chunks to avoid SQL stack overflow with large datasets.
+ * Skips books whose URL already exists in the database.
  */
 export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
   if (books.length === 0) return;
 
   const db = await getDbAsync();
+  let totalInserted = 0;
 
-  const urls = books.map(b => b.url ?? '').filter(Boolean);
+  for (const booksChunk of chunk(books, CHUNK_SIZE)) {
+    const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
 
-  // Single query to find all existing books by URL
-  const existing = urls.length > 0
-    ? await db.select({ id: book.id, url: book.url }).from(book).where(inArray(book.url, urls))
-    : [];
+    const existing = urls.length > 0
+      ? await db.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+      : [];
 
-  const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
+    const existingUrls = new Set(existing.map(r => r.url));
+    const toInsert = booksChunk.filter(b => b.url && !existingUrls.has(b.url));
 
-  const toInsert: NewBook[] = books.filter(b=>!existingByUrl.get(b.url));
- 
-  if (toInsert.length > 0) {
-    await db.insert(book).values(toInsert);
+    if (toInsert.length > 0) {
+      await db.insert(book).values(toInsert);
+      totalInserted += toInsert.length;
+    }
   }
 
-  console.log(`Successfully processed ${books.length} books (${toInsert.length} inserted`);
+  console.log(`Successfully processed ${books.length} books (${totalInserted} inserted)`);
 }
+
+/**
+ * Update existing books by URL, processing in chunks to avoid SQL stack overflow with large datasets.
+ * Only updates books whose URL already exists in the database.
+ */
 export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
   if (books.length === 0) return;
 
   const db = await getDbAsync();
+  let totalUpdated = 0;
 
-  const urls = books.map(b => b.url ?? '').filter(Boolean);
+  for (const booksChunk of chunk(books, CHUNK_SIZE)) {
+    const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
 
-  // Single query to find all existing books by URL
-  const existing = urls.length > 0
-    ? await db.select({ id: book.id, url: book.url }).from(book).where(inArray(book.url, urls))
-    : [];
+    const existing = urls.length > 0
+      ? await db.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+      : [];
 
-  const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
+    const existingUrls = new Set(existing.map(r => r.url));
+    const toUpdate = booksChunk.filter(b => b.url && existingUrls.has(b.url));
 
-  const toUpdate: Partial<NewBook>[] = books.filter(b=>b.url && !existingByUrl.get(b.url));
- 
-  for (const { url, ...data } of toUpdate) {
-    if(url){
-      await db.update(book).set(data).where(eq(book.url, url));
+    for (const { url, ...data } of toUpdate) {
+      if (url) {
+        await db.update(book).set(data).where(eq(book.url, url));
+        totalUpdated++;
+      }
     }
   }
 
-  console.log(`Successfully processed ${books.length} books ${toUpdate.length} updated)`);
+  console.log(`Successfully processed ${books.length} books (${totalUpdated} updated)`);
 }

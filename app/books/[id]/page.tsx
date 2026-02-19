@@ -20,21 +20,14 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // Fetch book details from a dedicated API or fetch from the list API (simplified here)
-                const bookRes = await fetch(`/api/books?id=${params.id}`); // This is a bit lazy, should have book/[id] route
-                // Actually, let's assume we can fetch it. I'll need a book/[id] route for better practice
-                // But for now let's just use the books route with a filter.
-
-                const booksRes = await fetch(`/api/books`);
-                const booksData = await booksRes.json();
-                const foundBook = booksData.books.find((b: Book) => b.id === params.id);
-
-                if (!foundBook) {
+                const bookRes = await fetch(`/api/books/${params.id}`);
+                if (!bookRes.ok) {
                     toast.error('Book not found');
                     router.push('/books');
                     return;
                 }
-                setBook(foundBook);
+                const bookData = await bookRes.json();
+                setBook(bookData.book);
 
                 // Fetch annotation
                 const annRes = await fetch(`/api/books/${params.id}/annotation`);

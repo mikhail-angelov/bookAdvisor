@@ -1,53 +1,53 @@
 'use client';
 
 import { Book } from '@/db/schema';
-import Link from 'next/link';
 
 interface BookCardProps {
     book: Book;
 }
 
+function formatDate(dateStr: string | null): string {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
 export default function BookCard({ book }: BookCardProps) {
     return (
-        <Link
-            href={`/books/${book.id}`}
-            className="group block bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-gray-100 hover:-translate-y-1"
+        <tr
+            className="group hover:bg-blue-50/50 transition-colors cursor-pointer"
+            onClick={() => { window.location.href = `/books/${book.id}`; }}
         >
-            <div className="p-5">
-                <div className="flex justify-between items-start mb-3">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-100">
-                        {book.category}
-                    </span>
-                    <span className="text-xs text-gray-400 font-medium">
-                        {book.size}
-                    </span>
-                </div>
+            {/* Title */}
+            <td className="px-5 py-3 font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                <span className="line-clamp-1">{book.title}</span>
+            </td>
 
-                <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2 mb-1">
-                    {book.title}
-                </h3>
+            {/* Genre */}
+            <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
+                <span className="line-clamp-1">{book.genre || '—'}</span>
+            </td>
 
-                <p className="text-sm text-gray-500 mb-4 line-clamp-1">
-                    {book.authorName || 'Unknown Author'}
-                </p>
+            {/* Seeds */}
+            <td className="px-4 py-3 text-center hidden sm:table-cell">
+                <span className="inline-flex items-center gap-1 text-gray-600">
+                    <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" />
+                    </svg>
+                    {book.seeds ?? '—'}
+                </span>
+            </td>
 
-                <div className="flex items-center gap-4 text-xs font-medium text-gray-400">
-                    <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" />
-                        </svg>
-                        <span className="text-gray-600">{book.seeds}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <svg className="w-4 h-4 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 012 2v9l-5-4.5L5 22v-9a2 2 0 01-2-2V5z" />
-                        </svg>
-                        <span>{book.year || 'N/A'}</span>
-                    </div>
-                </div>
-            </div>
+            {/* Downloads */}
+            <td className="px-4 py-3 text-center text-gray-500 hidden sm:table-cell">
+                {book.downloads ?? '—'}
+            </td>
 
-            <div className="h-1 w-full bg-gray-50 group-hover:bg-blue-600 transition-colors" />
-        </Link>
+            {/* Last Comment */}
+            <td className="px-5 py-3 text-right text-gray-400 hidden lg:table-cell whitespace-nowrap">
+                {formatDate(book.lastCommentDate)}
+            </td>
+        </tr>
     );
 }
