@@ -1,5 +1,5 @@
 import { GET } from '../books/route';
-import { initDatabase, closeDatabase, getDbAsync, book as bookSchema } from '@/db/index';
+import { initDatabase, closeDatabase, getAppDbAsync, book as bookSchema } from '@/db/index';
 import { NextRequest } from 'next/server';
 
 describe('GET /api/books', () => {
@@ -14,12 +14,12 @@ describe('GET /api/books', () => {
 
   beforeEach(async () => {
     // Clear books table before each test
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     await db.delete(bookSchema);
   });
 
   it('should filter books by genre with comma-separated values', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     // Insert test books with different genre formats
     await db.insert(bookSchema).values([
@@ -98,7 +98,7 @@ describe('GET /api/books', () => {
   });
 
   it('should handle case-insensitive genre filtering', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -146,7 +146,7 @@ describe('GET /api/books', () => {
   });
 
   it('should filter books by genre with different delimiters', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -200,7 +200,7 @@ describe('GET /api/books', () => {
   });
 
   it('should handle genre at different positions in the list', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -258,7 +258,7 @@ describe('GET /api/books', () => {
   });
 
   it('should combine genre filter with search query', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {

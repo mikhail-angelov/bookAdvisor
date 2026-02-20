@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifySessionToken } from '@/lib/auth';
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     }
 
     const payload = verifySessionToken(token);
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     const existingUser = await db.select().from(user).where(eq(user.id, payload.userId)).get();
     

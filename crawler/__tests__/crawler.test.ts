@@ -4,7 +4,7 @@
 
 import { main } from '../main';
 import { CrawlConfig } from '../types';
-import { initDatabase, closeDatabase, getDbAsync, crawl, crawlHistory } from '../../db/index';
+import { initDatabase, closeDatabase, getCrawlDbAsync, crawl, crawlHistory } from '../../db/index';
 import { fixture as forumFixture } from './fixtures/torrents-page';
 import { fixture as detailsFixture } from './fixtures/torrent-details';
 import { fetchUrl } from '../fetcher';
@@ -60,8 +60,8 @@ describe('Crawler Integration', () => {
   });
 
   beforeEach(async () => {
-    // Clear database before each test
-    const db = await getDbAsync();
+    // Clear crawl database before each test
+    const db = await getCrawlDbAsync();
     if (db) {
       await db.delete(crawl);
       await db.delete(crawlHistory);
@@ -84,7 +84,7 @@ describe('Crawler Integration', () => {
     await main(config);
 
     // Verify database state
-    const db = await getDbAsync();
+    const db = await getCrawlDbAsync();
     const crawlRecords = await db!.select().from(crawl);
     const historyRecords = await db!.select().from(crawlHistory);
 
@@ -141,7 +141,7 @@ describe('Crawler Integration', () => {
     await main(config);
 
     // Verify crawl record marked as error
-    const db = await getDbAsync();
+    const db = await getCrawlDbAsync();
     const crawlRecords = await db!.select().from(crawl);
     
     expect(crawlRecords.length).toBe(1);

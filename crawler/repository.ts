@@ -5,9 +5,10 @@
 import { v4 as uuidv4 } from 'uuid';
 import chunk from 'lodash/chunk';
 import { eq, and, inArray, sql } from 'drizzle-orm';
-import { getDbAsync } from '../db/index';
+import { getCrawlDbAsync, getAppDbAsync } from '../db/index';
 import { crawl, crawlHistory, book } from '../db/index';
-import type { Crawl, NewCrawl, NewCrawlHistory, NewBook } from '../db/schema';
+import type { Crawl, NewCrawl, NewCrawlHistory } from '../db/schema-crawl';
+import type { NewBook } from '../db/schema-app';
 import { CrawlStatus, CrawlType } from './types';
 
 const CHUNK_SIZE = 500;
@@ -20,10 +21,10 @@ export async function initializeCrawlRecords(
   pages: number,
   type: CrawlType = CrawlType.FORUM_PAGE
 ): Promise<string[]> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   const now = new Date().toISOString();
 
-  const records: NewCrawl[] = Array.from({ length: pages }, (_, i) => {
+  const records: NewCrawl[] = Array.from({ length: pages }, (_, i): NewCrawl => {
     const start = i * 50;
     const url = `https://rutracker.org/forum/viewforum.php?f=${forumId}${start > 0 ? `&start=${start}` : ''}`;
     return { id: uuidv4(), url, status: CrawlStatus.PENDING, type, createdAt: now };
@@ -61,7 +62,7 @@ export async function initializeCrawlRecords(
  * Create a new crawl history record.
  */
 export async function createCrawlHistory(forumId: number): Promise<string> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   const now = new Date().toISOString();
   const id = uuidv4();
 
@@ -85,7 +86,7 @@ export async function updateCrawlHistory(
   historyId: string,
   updates: Partial<NewCrawlHistory>
 ): Promise<void> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   await db.update(crawlHistory).set(updates).where(eq(crawlHistory.id, historyId));
 }
 
@@ -96,7 +97,7 @@ export async function getPendingCrawlRecords(
   type?: CrawlType,
   limit?: number
 ): Promise<Crawl[]> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
 
   const conditions = [eq(crawl.status, CrawlStatus.PENDING)];
   if (type) conditions.push(eq(crawl.type, type));
@@ -112,7 +113,7 @@ export async function updateCrawlRecord(
   id: string,
   updates: Partial<NewCrawl>
 ): Promise<void> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   await db.update(crawl).set(updates).where(eq(crawl.id, id));
 }
 
@@ -125,7 +126,7 @@ export async function createFreshTorrentDetailCrawlRecords(
 ): Promise<string[]> {
   if (torrentUrls.length === 0) return [];
 
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   const now = new Date().toISOString();
   const allNewIds: string[] = [];
 
@@ -170,7 +171,7 @@ export async function getCrawlStatistics(): Promise<{
   completed: number;
   error: number;
 }> {
-  const db = await getDbAsync();
+  const db = await getCrawlDbAsync();
   const results = await db
     .select({ status: crawl.status, count: sql<number>`count(*)` })
     .from(crawl)
@@ -208,28 +209,31 @@ export async function markCrawlRecordFailed(id: string, error: string): Promise<
 
 /**
  * Get all completed crawls, optionally filtered by type and excluding already-processed ones.
+ * This function needs both databases - crawlDb for crawl records and prodDb for book records.
  */
 export async function getCompletedCrawls(options: {
   type?: CrawlType | string;
   excludeProcessed?: boolean;
 } = {}): Promise<Crawl[]> {
-  const db = await getDbAsync();
+  const crawlDb = await getCrawlDbAsync();
+  const prodDb = await getAppDbAsync();
+  
   const conditions = [eq(crawl.status, CrawlStatus.COMPLETED)];
   if (options.type) conditions.push(eq(crawl.type, options.type));
 
   if (options.excludeProcessed) {
-    const processedIds = db
+    const processedIds = prodDb
       .select({ id: book.crawlId })
       .from(book)
       .where(sql`${book.crawlId} IS NOT NULL`);
 
-    return db
+    return crawlDb
       .select()
       .from(crawl)
       .where(and(...conditions, sql`${crawl.id} NOT IN (${processedIds})`));
   }
 
-  return db.select().from(crawl).where(and(...conditions));
+  return crawlDb.select().from(crawl).where(and(...conditions));
 }
 
 /**
@@ -239,21 +243,21 @@ export async function getCompletedCrawls(options: {
 export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
   if (books.length === 0) return;
 
-  const db = await getDbAsync();
+  const prodDb = await getAppDbAsync();
   let totalInserted = 0;
 
   for (const booksChunk of chunk(books, CHUNK_SIZE)) {
     const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
 
     const existing = urls.length > 0
-      ? await db.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+      ? await prodDb.select({ url: book.url }).from(book).where(inArray(book.url, urls))
       : [];
 
     const existingUrls = new Set(existing.map(r => r.url));
     const toInsert = booksChunk.filter(b => b.url && !existingUrls.has(b.url));
 
     if (toInsert.length > 0) {
-      await db.insert(book).values(toInsert);
+      await prodDb.insert(book).values(toInsert);
       totalInserted += toInsert.length;
     }
   }
@@ -268,14 +272,14 @@ export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
 export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
   if (books.length === 0) return;
 
-  const db = await getDbAsync();
+  const prodDb = await getAppDbAsync();
   let totalUpdated = 0;
 
   for (const booksChunk of chunk(books, CHUNK_SIZE)) {
     const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
 
     const existing = urls.length > 0
-      ? await db.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+      ? await prodDb.select({ url: book.url }).from(book).where(inArray(book.url, urls))
       : [];
 
     const existingUrls = new Set(existing.map(r => r.url));
@@ -283,7 +287,7 @@ export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
 
     for (const { url, ...data } of toUpdate) {
       if (url) {
-        await db.update(book).set(data).where(eq(book.url, url));
+        await prodDb.update(book).set(data).where(eq(book.url, url));
         totalUpdated++;
       }
     }

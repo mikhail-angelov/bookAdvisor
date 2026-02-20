@@ -2,13 +2,13 @@
  * Unit tests for repository functions
  */
 
-import { initDatabase, closeDatabase } from '../../db/index';
+import { initDatabase, closeDatabase, getCrawlDbAsync, crawl, crawlHistory } from '../../db/index';
 import * as repository from '../repository';
 import { CrawlType, CrawlStatus } from '../types';
 
 describe('Repository', () => {
   beforeAll(async () => {
-    // Initialize in-memory test database
+    // Initialize in-memory test databases
     await initDatabase('test');
   });
 
@@ -17,11 +17,11 @@ describe('Repository', () => {
   });
 
   beforeEach(async () => {
-    // Clear database before each test
-    const db = await import('../../db/index').then(m => m.getDbAsync());
+    // Clear crawl database before each test
+    const db = await getCrawlDbAsync();
     if (db) {
-      await db.delete(require('../../db/index').crawl);
-      await db.delete(require('../../db/index').crawlHistory);
+      await db.delete(crawl);
+      await db.delete(crawlHistory);
     }
   });
 
@@ -35,8 +35,8 @@ describe('Repository', () => {
       expect(recordIds).toHaveLength(pages);
       
       // Verify records were created in database
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       
       expect(records).toHaveLength(pages);
       
@@ -59,8 +59,8 @@ describe('Repository', () => {
       
       expect(recordIds).toHaveLength(1);
       
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       
       expect(records[0].type).toBe(type);
     });
@@ -75,8 +75,8 @@ describe('Repository', () => {
       expect(historyId).toBeDefined();
       
       // Verify record was created
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const historyRecords = await db!.select().from(require('../../db/index').crawlHistory);
+      const db = await getCrawlDbAsync();
+      const historyRecords = await db!.select().from(crawlHistory);
       
       expect(historyRecords).toHaveLength(1);
       expect(historyRecords[0].id).toBe(historyId);
@@ -101,8 +101,8 @@ describe('Repository', () => {
       await repository.updateCrawlHistory(historyId, updates);
       
       // Verify update
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const historyRecords = await db!.select().from(require('../../db/index').crawlHistory);
+      const db = await getCrawlDbAsync();
+      const historyRecords = await db!.select().from(crawlHistory);
       
       expect(historyRecords[0].pagesCrawled).toBe(5);
       expect(historyRecords[0].torrentsFound).toBe(50);
@@ -117,8 +117,8 @@ describe('Repository', () => {
       await repository.initializeCrawlRecords(forumId, 2);
       
       // Mark one as completed
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       await repository.updateCrawlRecord(records[0].id, { status: CrawlStatus.COMPLETED });
       
       // Get pending records
@@ -157,8 +157,8 @@ describe('Repository', () => {
       
       expect(recordIds).toHaveLength(2);
       
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       
       expect(records).toHaveLength(2);
       expect(records[0].url).toBe(torrentUrls[0]);
@@ -178,8 +178,8 @@ describe('Repository', () => {
       
       await repository.markCrawlRecordCompleted(recordId, html, codePage);
       
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       
       expect(records[0].status).toBe(CrawlStatus.COMPLETED);
       expect(records[0].htmlBody).toBe(html);
@@ -197,8 +197,8 @@ describe('Repository', () => {
       
       await repository.markCrawlRecordFailed(recordId, error);
       
-      const db = await import('../../db/index').then(m => m.getDbAsync());
-      const records = await db!.select().from(require('../../db/index').crawl);
+      const db = await getCrawlDbAsync();
+      const records = await db!.select().from(crawl);
       
       expect(records[0].status).toBe(CrawlStatus.ERROR);
       expect(records[0].htmlBody).toBe(error);

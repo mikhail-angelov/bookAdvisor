@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { book } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     const found = await db.select().from(book).where(eq(book.id, params.id)).get();
 
     if (!found) {

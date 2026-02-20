@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
 import { eq, and, sql, desc } from 'drizzle-orm';
 
@@ -41,7 +41,7 @@ function extractGenres(genreStr: string | null): string[] {
 /**
  * Get user's preferences based on their ratings
  */
-async function getUserPreferences(db: ReturnType<typeof getDbAsync> extends Promise<infer T> ? T : never, userId: string): Promise<UserPreferences> {
+async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends Promise<infer T> ? T : never, userId: string): Promise<UserPreferences> {
   // Get all annotations with positive ratings (4-5 stars = liked)
   const userRatings = await db
     .select()
@@ -207,7 +207,7 @@ export async function GET(req: NextRequest) {
     // In production, this would come from session
     const targetUserId = userId || 'default-user';
 
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
 
     // Get user's preferences
     const prefs = await getUserPreferences(db, targetUserId);

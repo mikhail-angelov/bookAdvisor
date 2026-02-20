@@ -1,5 +1,5 @@
 import { GET } from '../books/genres/route';
-import { initDatabase, closeDatabase, getDbAsync, book as bookSchema } from '@/db/index';
+import { initDatabase, closeDatabase, getAppDbAsync, book as bookSchema } from '@/db/index';
 import { eq } from 'drizzle-orm';
 
 describe('GET /api/books/genres', () => {
@@ -14,7 +14,7 @@ describe('GET /api/books/genres', () => {
 
   beforeEach(async () => {
     // Clear books table before each test
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     await db.delete(bookSchema);
   });
 
@@ -27,7 +27,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should split comma-separated genres and return unique values', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     // Insert test books with comma-separated genres
     await db.insert(bookSchema).values([
@@ -72,7 +72,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should split semicolon-separated genres', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -106,7 +106,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should split slash-separated genres', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -131,7 +131,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should filter out technical metadata', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -185,7 +185,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should normalize genre capitalization', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -228,7 +228,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should handle empty and null genres', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -278,7 +278,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should filter out strings with colons that contain metadata keywords', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -328,7 +328,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should filter out very short strings and punctuation', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {
@@ -387,7 +387,7 @@ describe('GET /api/books/genres', () => {
   });
 
   it('should handle mixed delimiters in the same genre field', async () => {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     await db.insert(bookSchema).values([
       {

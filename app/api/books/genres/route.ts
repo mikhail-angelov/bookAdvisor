@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { book } from '@/db/schema';
 import { isNotNull, sql } from 'drizzle-orm';
 
 export async function GET() {
   try {
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     const rows = await db
       .selectDistinct({ genre: book.genre })
       .from(book)

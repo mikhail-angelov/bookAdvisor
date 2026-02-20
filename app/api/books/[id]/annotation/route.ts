@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { userAnnotation } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { verifySessionToken } from '@/lib/auth';
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const payload = verifySessionToken(token);
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
 
     const annotation = await db.select().from(userAnnotation)
       .where(and(eq(userAnnotation.userId, payload.userId), eq(userAnnotation.bookId, params.id)))
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     const payload = verifySessionToken(token);
     const { annotation, rating, readStatus } = await req.json();
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
 
     const existing = await db.select().from(userAnnotation)
       .where(and(eq(userAnnotation.userId, payload.userId), eq(userAnnotation.bookId, params.id)))

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { book } from '@/db/schema';
 import { eq, like, or, and, sql, asc, desc } from 'drizzle-orm';
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const sortBy = (searchParams.get('sortBy') || 'lastCommentDate') as SortColumn;
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
 
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
 
     const conditions = [];
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getDbAsync } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { createMagicLinkToken, sendMagicLinkEmail } from '@/lib/auth';
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
     }
 
-    const db = await getDbAsync();
+    const db = await getAppDbAsync();
     
     // Check if user exists, if not create them
     let existingUser = await db.select().from(user).where(eq(user.email, email)).get();
