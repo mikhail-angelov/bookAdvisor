@@ -29,27 +29,6 @@ CREATE TABLE `books` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `books_crawl_id_unique` ON `books` (`crawl_id`);--> statement-breakpoint
-CREATE TABLE `crawls` (
-	`id` text PRIMARY KEY NOT NULL,
-	`url` text NOT NULL,
-	`status` text DEFAULT 'pending' NOT NULL,
-	`type` text DEFAULT 'torrents-page' NOT NULL,
-	`code_page` text,
-	`html_body` text,
-	`created_at` text NOT NULL
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `crawls_url_unique` ON `crawls` (`url`);--> statement-breakpoint
-CREATE TABLE `crawl_history` (
-	`id` text PRIMARY KEY NOT NULL,
-	`forum_id` integer NOT NULL,
-	`pages_crawled` integer DEFAULT 0,
-	`torrents_found` integer DEFAULT 0,
-	`started_at` text NOT NULL,
-	`completed_at` text,
-	`status` text DEFAULT 'running',
-	`created_at` text NOT NULL
-);
 --> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
