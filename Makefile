@@ -8,6 +8,6 @@ install:
 
 deploy:
 	@echo "Deploying server..."
-	ssh root@$(HOST) "docker pull ghcr.io/mikhail-angelov/bookAdvisor:latest"
+	ssh root@$(HOST) "docker pull ghcr.io/mikhail-angelov/bookadvisor:latest"
 	ssh root@$(HOST) "cd /opt/bookAdviser && docker compose down"
 	ssh root@$(HOST) "cd /opt/bookAdviser && docker compose up -d"

@@ -2,10 +2,10 @@ version: '3.8'
 
 services:
   app:
-    image: ghcr.io/mikhail-angelov/bookAdvisor:latest
+    image: ghcr.io/mikhail-angelov/bookadvisor:latest
     container_name: bookAdvisor
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3010:3000"
     volumes:
       - ./prod.db:/app/data/prod.db
     env_file:
@@ -37,10 +37,10 @@ services:
       - MONIC_CHECK_SYSTEM_DISK_THRESHOLD=90
 
       - MONIC_CHECK_DOCKER_INTERVAL=60
-      - MONIC_CHECK_DOCKER_CONTAINERS=adviser
+      - MONIC_CHECK_DOCKER_CONTAINERS=advisor
 
       - MONIC_CHECK_HTTP_INTERVAL=300
-      - MONIC_CHECK_HTTP_URL=https://adviser.bconf.com
+      - MONIC_CHECK_HTTP_URL=https://advisor.bconf.com
       - MONIC_CHECK_HTTP_METHOD=GET
       - MONIC_CHECK_HTTP_TIMEOUT=10
       - MONIC_CHECK_HTTP_EXPECTED_STATUS=200

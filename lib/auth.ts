@@ -81,7 +81,7 @@ export async function sendMagicLinkEmail(email: string, token: string): Promise<
   const magicLink = `${APP_URL}/api/auth/verify?token=${token}`;
 
   // For development, log to console if no SMTP configured
-  if (!process.env.SMTP_HOST) {
+  if (!process.env.POST_SERVICE_URL) {
     console.log('--- MAGIC LINK EMAIL ---');
     console.log(`To: ${email}`);
     console.log(`Link: ${magicLink}`);
@@ -90,9 +90,9 @@ export async function sendMagicLinkEmail(email: string, token: string): Promise<
   }
 
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
+    host: process.env.POST_SERVICE_URL,
     port: parseInt(process.env.SMTP_PORT || '587'),
-    secure: process.env.SMTP_SECURE === 'true',
+    secure: false, // false for port 587 (STARTTLS)
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -100,12 +100,12 @@ export async function sendMagicLinkEmail(email: string, token: string): Promise<
   });
 
   await transporter.sendMail({
-    from: `"Book Tracker" <${process.env.SMTP_FROM || 'noreply@example.com'}>`,
+    from: `"Book Advisor" <${process.env.SMTP_FROM || 'no-reply@js2go.ru'}>`,
     to: email,
-    subject: 'Your Magic Link for Book Tracker',
+    subject: 'Your Magic Link for Book Advisor',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-        <h2 style="color: #2563eb;">Welcome to Book Tracker</h2>
+        <h2 style="color: #2563eb;">Welcome to Book Advisor</h2>
         <p>Click the button below to sign in to your account. This link will expire in 15 minutes.</p>
         <div style="text-align: center; margin: 30px 0;">
           <a href="${magicLink}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;">Sign In</a>
