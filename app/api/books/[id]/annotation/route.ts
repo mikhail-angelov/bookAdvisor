@@ -29,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const payload = verifySessionToken(token);
-    const { annotation, rating, readStatus } = await req.json();
+    const { annotation, rating, performanceRating, readStatus } = await req.json();
     const db = await getAppDbAsync();
 
     const existing = await db.select().from(userAnnotation)
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         .set({
           annotation,
           rating,
+          performanceRating,
           readStatus,
           createdAt: new Date().toISOString(), // Or keep original
         })
@@ -57,6 +58,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         bookId: params.id,
         annotation,
         rating,
+        performanceRating,
         readStatus,
         createdAt: new Date().toISOString(),
       }).run();

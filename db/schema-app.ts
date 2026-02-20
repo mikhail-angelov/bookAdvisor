@@ -54,6 +54,7 @@ export const userAnnotation = sqliteTable("user_annotations", {
     .notNull()
     .references(() => book.id),
   rating: integer("rating").notNull().default(0),
+  performanceRating: integer("performance_rating").notNull().default(0),
   annotation: text("annotation"),
   readStatus: text("read_status").default("unread"),
   startedAt: text("started_at"),

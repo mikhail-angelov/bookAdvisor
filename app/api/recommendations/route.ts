@@ -6,16 +6,17 @@ import { eq, and, sql, desc } from 'drizzle-orm';
 /**
  * Recommendation Scoring Algorithm
  * 
- * Score = (genre_match × 30%) + (author_match × 25%) + (performer_match × 20%) + (popularity × 15%) + (recency × 10%)
+ * Score = (genre_match × 25%) + (author_match × 20%) + (performer_match × 15%) + (performance_match × 15%) + (popularity × 15%) + (recency × 10%)
  * 
  * Weights are configurable via query params
  */
 
 // Default weights for scoring
 const DEFAULT_WEIGHTS = {
-  genre: 0.30,
-  author: 0.25,
-  performer: 0.20,
+  genre: 0.25,
+  author: 0.20,
+  performer: 0.15,
+  performance: 0.15,
   popularity: 0.15,
   recency: 0.10,
 };
@@ -24,7 +25,9 @@ interface UserPreferences {
   likedGenres: string[];
   likedAuthors: string[];
   likedPerformers: string[];
+  highPerformancePerformers: string[];
   avgRating: number;
+  avgPerformanceRating: number;
 }
 
 /**
@@ -57,7 +60,9 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
       likedGenres: [],
       likedAuthors: [],
       likedPerformers: [],
+      highPerformancePerformers: [],
       avgRating: 0,
+      avgPerformanceRating: 0,
     };
   }
 
@@ -68,7 +73,9 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
       likedGenres: [],
       likedAuthors: [],
       likedPerformers: [],
+      highPerformancePerformers: [],
       avgRating: 0,
+      avgPerformanceRating: 0,
     };
   }
 
@@ -89,7 +96,10 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
   const genreCounts = new Map<string, number>();
   const authorCounts = new Map<string, number>();
   const performerCounts = new Map<string, number>();
+  const highPerfCounts = new Map<string, number>();
   let totalRating = 0;
+  let totalPerfRating = 0;
+  let perfCount = 0;
 
   for (const rating of userRatings) {
     const b = bookMap.get(rating.bookId);
@@ -97,13 +107,13 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
 
     totalRating += rating.rating;
 
-    // Count genres
+    // Count genres (weighted by rating)
     const genres = extractGenres(b.genre);
     for (const g of genres) {
       genreCounts.set(g, (genreCounts.get(g) || 0) + rating.rating);
     }
 
-    // Count authors
+    // Count authors (weighted by rating)
     if (b.authorName) {
       const author = b.authorName.toLowerCase().trim();
       if (author && author !== 'unknown') {
@@ -111,11 +121,23 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
       }
     }
 
-    // Count performers
+    // Count performers (weighted by rating)
     if (b.performer) {
       const performer = b.performer.toLowerCase().trim();
       if (performer && performer !== 'unknown') {
         performerCounts.set(performer, (performerCounts.get(performer) || 0) + rating.rating);
+      }
+    }
+
+    // Track high performance ratings (4-5 stars)
+    if (rating.performanceRating && rating.performanceRating >= 4) {
+      totalPerfRating += rating.performanceRating;
+      perfCount++;
+      if (b.performer) {
+        const performer = b.performer.toLowerCase().trim();
+        if (performer && performer !== 'unknown') {
+          highPerfCounts.set(performer, (highPerfCounts.get(performer) || 0) + rating.performanceRating);
+        }
       }
     }
   }
@@ -127,7 +149,9 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
     likedGenres: Array.from(genreCounts.entries()).sort(sortByCount).slice(0, 10).map(([g]) => g),
     likedAuthors: Array.from(authorCounts.entries()).sort(sortByCount).slice(0, 10).map(([a]) => a),
     likedPerformers: Array.from(performerCounts.entries()).sort(sortByCount).slice(0, 10).map(([p]) => p),
+    highPerformancePerformers: Array.from(highPerfCounts.entries()).sort(sortByCount).slice(0, 10).map(([p]) => p),
     avgRating: totalRating / userRatings.length,
+    avgPerformanceRating: perfCount > 0 ? totalPerfRating / perfCount : 0,
   };
 }
 
@@ -142,9 +166,10 @@ function calculateScore(
   let genreScore = 0;
   let authorScore = 0;
   let performerScore = 0;
+  let performanceScore = 0;
   const reasons: string[] = [];
 
-  // Genre match (30%)
+  // Genre match (25%)
   const bookGenres = extractGenres(book.genre);
   if (bookGenres.length > 0 && prefs.likedGenres.length > 0) {
     const matches = bookGenres.filter(g => prefs.likedGenres.includes(g));
@@ -154,7 +179,7 @@ function calculateScore(
     }
   }
 
-  // Author match (25%)
+  // Author match (20%)
   if (book.authorName && prefs.likedAuthors.length > 0) {
     const author = book.authorName.toLowerCase().trim();
     if (prefs.likedAuthors.includes(author)) {
@@ -163,12 +188,21 @@ function calculateScore(
     }
   }
 
-  // Performer match (20%)
+  // Performer match (15%)
   if (book.performer && prefs.likedPerformers.length > 0) {
     const performer = book.performer.toLowerCase().trim();
     if (prefs.likedPerformers.includes(performer)) {
       performerScore = 1;
       reasons.push(`Performer: ${book.performer}`);
+    }
+  }
+
+  // Performance match (15%) - based on user's high performance ratings
+  if (book.performer && prefs.highPerformancePerformers.length > 0) {
+    const performer = book.performer.toLowerCase().trim();
+    if (prefs.highPerformancePerformers.includes(performer)) {
+      performanceScore = 1;
+      reasons.push(`Great audio: ${book.performer}`);
     }
   }
 
@@ -190,6 +224,7 @@ function calculateScore(
     (genreScore * weights.genre) +
     (authorScore * weights.author) +
     (performerScore * weights.performer) +
+    (performanceScore * weights.performance) +
     (popularityScore * weights.popularity) +
     (recencyScore * weights.recency);
 

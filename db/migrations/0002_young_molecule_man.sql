@@ -1,0 +1,1 @@
+ALTER TABLE `user_annotations` ADD `performance_rating` integer DEFAULT 0 NOT NULL;

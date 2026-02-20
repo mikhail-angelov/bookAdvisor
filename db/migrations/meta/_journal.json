@@ -15,6 +15,13 @@
       "when": 1771508606667,
       "tag": "0001_curious_retro_girl",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1771582396755,
+      "tag": "0002_young_molecule_man",
+      "breakpoints": true
     }
   ]
 }
