@@ -29,7 +29,6 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                 const bookData = await bookRes.json();
                 setBook(bookData.book);
 
-                // Fetch annotation
                 const annRes = await fetch(`/api/books/${params.id}/annotation`);
                 const annData = await annRes.json();
                 if (annData.annotation) {
@@ -55,169 +54,227 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
             });
 
             if (!res.ok) throw new Error('Failed to save');
-
-            toast.success('Annotation saved!');
+            toast.success('Saved!');
         } catch (error) {
-            toast.error('Error saving annotation');
+            toast.error('Error saving');
         } finally {
             setIsSaving(false);
         }
     };
 
+    const readStatusConfig = {
+        unread: { label: 'Want to Read', color: 'bg-slate-600', icon: '○' },
+        reading: { label: 'Reading', color: 'bg-amber-500', icon: '◐' },
+        completed: { label: 'Completed', color: 'bg-emerald-500', icon: '●' },
+        dropped: { label: 'Dropped', color: 'bg-rose-500', icon: '✕' },
+    };
+
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-8 h-8 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                    <p className="text-slate-500 text-sm">Loading...</p>
+                </div>
             </div>
         );
     }
 
     if (!book) return null;
 
+    const statusConfig = readStatusConfig[annotation.readStatus as keyof typeof readStatusConfig] || readStatusConfig.unread;
+
     return (
-        <div className="min-h-screen bg-gray-50">
-            <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-20">
-                <div className="max-w-4xl mx-auto flex items-center justify-between">
-                    <Link href="/books" className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors font-medium text-sm">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                        Back to Library
-                    </Link>
-                    <h1 className="text-sm font-bold text-gray-400 uppercase tracking-widest">Book Details</h1>
+        <div className="min-h-screen bg-slate-50">
+            {/* Header */}
+            <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-200">
+                <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+                    <div className="flex items-center justify-between">
+                        <Link 
+                            href="/books" 
+                            className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                            </svg>
+                            Back to Library
+                        </Link>
+                        <Link href="/books" className="text-sm font-medium text-slate-800">
+                            Book Details
+                        </Link>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-6xl mx-auto px-6 py-10">
-                <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-white">
-                    <div className="md:flex">
-                        {/* Book Info with Image */}
-                        <div className="p-8 md:p-12 md:w-2/3 border-b md:border-b-0 md:border-r border-gray-50">
-                            <div className="flex flex-col md:flex-row gap-8 mb-8">
-                                {/* Book Cover Image */}
-                                {book.imageUrl && (
-                                    <div className="md:w-1/3">
-                                        <div className="bg-gray-100 rounded-2xl overflow-hidden shadow-lg border border-gray-200">
-                                            <img
-                                                src={book.imageUrl}
-                                                alt={book.title}
-                                                className="w-full h-auto object-cover"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                    (e.target as HTMLImageElement).parentElement!.innerHTML = `
-                                                        <div class="w-full h-64 flex items-center justify-center bg-gray-100 text-gray-400">
-                                                            <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                            </svg>
-                                                        </div>
-                                                    `;
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                )}
-                                
-                                {/* Book Metadata */}
-                                <div className={`${book.imageUrl ? 'md:w-2/3' : 'w-full'}`}>
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-50 text-blue-600 border border-blue-100 mb-4">
-                                        {book.category}
-                                    </span>
-                                    <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight mb-2">
-                                        {book.title}
-                                    </h2>
-                                    <p className="text-lg text-gray-500 font-medium">by {book.authorName || 'Unknown Author'}</p>
-                                    
-                                    <div className="grid grid-cols-2 gap-6 mt-6">
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Series</h4>
-                                            <p className="font-semibold text-gray-700">{book.series || 'None'}</p>
-                                            {book.bookNumber && <p className="text-sm text-gray-500">Book #{book.bookNumber}</p>}
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Year</h4>
-                                            <p className="font-semibold text-gray-700">{book.year || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Genre</h4>
-                                            <p className="font-semibold text-gray-700">{book.genre || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Size / Downloads</h4>
-                                            <p className="font-semibold text-gray-700">{book.size} / {book.downloads}</p>
-                                        </div>
-                                    </div>
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Hero Section */}
+                <div className="flex flex-col lg:flex-row-reverse gap-8 mb-10">
+                    {/* Book Cover - Right Side, Smaller */}
+                    <div className="lg:w-56 flex-shrink-0">
+                        <div className="relative">
+                            {book.imageUrl ? (
+                                <img
+                                    src={book.imageUrl}
+                                    alt={book.title}
+                                    className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg"
+                                />
+                            ) : (
+                                <div className="w-full aspect-[2/3] bg-slate-200 rounded-lg flex items-center justify-center">
+                                    <svg className="w-16 h-16 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                    </svg>
                                 </div>
+                            )}
+                            
+                            {/* Quick Status Badge */}
+                            <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 ${statusConfig.color} text-white px-4 py-1.5 rounded-full text-xs font-medium shadow-md flex items-center gap-1.5`}>
+                                <span>{statusConfig.icon}</span>
+                                <span>{statusConfig.label}</span>
                             </div>
+                        </div>
+                        
+                        {/* View Topic Link */}
+                        {book.url && (
+                            <a
+                                href={book.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors w-full justify-center"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                View Topic
+                            </a>
+                        )}
+                    </div>
 
-                            {/* Description */}
-                            {book.description && (
-                                <div className="mb-8">
-                                    <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                                        <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        Description
-                                    </h3>
-                                    <div className="bg-gray-50 rounded-2xl p-6">
-                                        <p className="text-gray-700 leading-relaxed whitespace-pre-line">{book.description}</p>
+                    {/* Book Info - Left Side */}
+                    <div className="flex-1 pt-2">
+                        {/* Category & Genre */}
+                        <div className="flex flex-wrap gap-2 mb-4">
+                            <span className="px-2.5 py-1 bg-slate-800 text-white text-xs font-medium rounded">
+                                {book.category}
+                            </span>
+                            {book.genre && (
+                                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded">
+                                    {book.genre}
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Title & Author */}
+                        <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 leading-tight mb-2">
+                            {book.title}
+                        </h1>
+                        <p className="text-lg text-slate-600 mb-6">
+                            by <span className="text-slate-800 font-medium">{book.authorName || 'Unknown Author'}</span>
+                        </p>
+
+                        {/* Meta Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+                            {book.series && (
+                                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                                    <div className="text-xs text-slate-500 uppercase tracking-wide">Series</div>
+                                    <div className="font-semibold text-slate-800 mt-1">
+                                        {book.series}
+                                        {book.bookNumber && <span className="text-slate-500 font-normal"> #{book.bookNumber}</span>}
                                     </div>
                                 </div>
                             )}
-
-                            {/* Topic Link */}
-                            <div className="bg-gray-50 rounded-2xl p-6">
-                                <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
-                                    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                    Topic Link
-                                </h3>
-                                <a
-                                    href={book.url || '#'}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline font-medium break-all"
-                                >
-                                    {book.url}
-                                </a>
+                            {book.year && (
+                                <div className="bg-white rounded-lg p-4 border border-slate-200">
+                                    <div className="text-xs text-slate-500 uppercase tracking-wide">Year</div>
+                                    <div className="font-semibold text-slate-800 mt-1">{book.year}</div>
+                                </div>
+                            )}
+                            <div className="bg-white rounded-lg p-4 border border-slate-200">
+                                <div className="text-xs text-slate-500 uppercase tracking-wide">Size</div>
+                                <div className="font-semibold text-slate-800 mt-1">{book.size || 'N/A'}</div>
+                            </div>
+                            <div className="bg-white rounded-lg p-4 border border-slate-200">
+                                <div className="text-xs text-slate-500 uppercase tracking-wide">Downloads</div>
+                                <div className="font-semibold text-slate-800 mt-1">{book.downloads?.toLocaleString() || 0}</div>
                             </div>
                         </div>
 
-                        {/* Annotation Panel */}
-                        <div className="p-8 md:p-12 md:w-1/3 bg-blue-50/30">
-                            <h3 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                My Annotation
-                            </h3>
+                        {/* Torrent Details */}
+                        <div className="grid grid-cols-3 gap-4 mb-6">
+                            <div className="text-center p-3 bg-emerald-50 rounded-lg">
+                                <div className="text-2xl font-bold text-emerald-600">{book.seeds || 0}</div>
+                                <div className="text-xs text-emerald-700 uppercase tracking-wide">Seeds</div>
+                            </div>
+                            <div className="text-center p-3 bg-amber-50 rounded-lg">
+                                <div className="text-2xl font-bold text-amber-600">{book.leechers || 0}</div>
+                                <div className="text-xs text-amber-700 uppercase tracking-wide">Leechers</div>
+                            </div>
+                            <div className="text-center p-3 bg-blue-50 rounded-lg">
+                                <div className="text-2xl font-bold text-blue-600">{book.commentsCount || 0}</div>
+                                <div className="text-xs text-blue-700 uppercase tracking-wide">Comments</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid lg:grid-cols-3 gap-8">
+                    {/* Main Content */}
+                    <div className="lg:col-span-2 space-y-6">
+                        {/* Description */}
+                        {book.description && (
+                            <section className="bg-white rounded-xl p-6 border border-slate-200">
+                                <h2 className="text-lg font-semibold text-slate-900 mb-4">Description</h2>
+                                <p className="text-slate-600 leading-relaxed whitespace-pre-line">
+                                    {book.description}
+                                </p>
+                            </section>
+                        )}
+                    </div>
+
+                    {/* Sidebar - Annotation Panel */}
+                    <div className="lg:col-span-1">
+                        <div className="bg-white rounded-xl p-6 border border-slate-200 sticky top-24">
+                            <h2 className="text-lg font-semibold text-slate-900 mb-6">My Notes</h2>
 
                             <div className="space-y-6">
+                                {/* Read Status */}
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Read Status</label>
-                                    <select
-                                        value={annotation.readStatus || 'unread'}
-                                        onChange={(e) => setAnnotation({ ...annotation, readStatus: e.target.value as any })}
-                                        className="w-full bg-white border border-gray-100 rounded-xl px-4 py-2 text-sm font-semibold focus:ring-2 focus:ring-blue-500 transition-all"
-                                    >
-                                        <option value="unread">Not Read</option>
-                                        <option value="reading">Reading</option>
-                                        <option value="completed">Completed</option>
-                                        <option value="dropped">Dropped</option>
-                                    </select>
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+                                        Read Status
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {Object.entries(readStatusConfig).map(([value, config]) => (
+                                            <button
+                                                key={value}
+                                                onClick={() => setAnnotation({ ...annotation, readStatus: value as any })}
+                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                    annotation.readStatus === value
+                                                        ? `${config.color} text-white`
+                                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                                }`}
+                                            >
+                                                {config.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
 
+                                {/* Rating */}
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Rating</label>
-                                    <div className="flex gap-2">
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+                                        Your Rating
+                                    </label>
+                                    <div className="flex gap-1">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button
                                                 key={star}
-                                                onClick={() => setAnnotation({ ...annotation, rating: star })}
-                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${(annotation.rating || 0) >= star ? 'bg-yellow-400 text-white shadow-md' : 'bg-white text-gray-300'
-                                                    }`}
+                                                onClick={() => setAnnotation({ ...annotation, rating: annotation.rating === star ? 0 : star })}
+                                                className="p-1 transition-transform hover:scale-110"
                                             >
-                                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <svg 
+                                                    className={`w-8 h-8 ${star <= (annotation.rating || 0) ? 'text-amber-400' : 'text-slate-300 hover:text-amber-200'}`}
+                                                    fill="currentColor" 
+                                                    viewBox="0 0 20 20"
+                                                >
                                                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                                                 </svg>
                                             </button>
@@ -225,27 +282,26 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                     </div>
                                 </div>
 
+                                {/* Notes */}
                                 <div>
-                                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Notes</label>
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
+                                        Personal Notes
+                                    </label>
                                     <textarea
-                                        rows={6}
                                         value={annotation.annotation || ''}
                                         onChange={(e) => setAnnotation({ ...annotation, annotation: e.target.value })}
-                                        placeholder="Add your personal notes about this book..."
-                                        className="w-full bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm font-medium focus:ring-2 focus:ring-blue-500 transition-all resize-none"
+                                        placeholder="Add your thoughts, notes, or review..."
+                                        className="w-full h-40 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent resize-none"
                                     />
                                 </div>
 
+                                {/* Save Button */}
                                 <button
                                     onClick={handleSaveAnnotation}
                                     disabled={isSaving}
-                                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="w-full py-3 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isSaving ? (
-                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                        'Save Annotation'
-                                    )}
+                                    {isSaving ? 'Saving...' : 'Save Notes'}
                                 </button>
                             </div>
                         </div>
