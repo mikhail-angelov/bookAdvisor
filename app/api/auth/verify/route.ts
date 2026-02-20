@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
     const sessionToken = createSessionToken(existingUser.id, existingUser.email);
     
     // Set cookie and redirect
-    const response = NextResponse.redirect(new URL('/?logged_in=true', req.url));
+    const response = NextResponse.redirect(new URL('/?logged_in=true', process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"));
     
     response.cookies.set('auth_token', sessionToken, {
       httpOnly: true,
