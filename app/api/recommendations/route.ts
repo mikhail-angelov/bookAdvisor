@@ -1,0 +1,296 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getDbAsync } from '@/db/index';
+import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
+import { eq, and, sql, desc } from 'drizzle-orm';
+
+/**
+ * Recommendation Scoring Algorithm
+ * 
+ * Score = (genre_match × 30%) + (author_match × 25%) + (performer_match × 20%) + (popularity × 15%) + (recency × 10%)
+ * 
+ * Weights are configurable via query params
+ */
+
+// Default weights for scoring
+const DEFAULT_WEIGHTS = {
+  genre: 0.30,
+  author: 0.25,
+  performer: 0.20,
+  popularity: 0.15,
+  recency: 0.10,
+};
+
+interface UserPreferences {
+  likedGenres: string[];
+  likedAuthors: string[];
+  likedPerformers: string[];
+  avgRating: number;
+}
+
+/**
+ * Extract unique genres from comma/semicolon/slash separated string
+ */
+function extractGenres(genreStr: string | null): string[] {
+  if (!genreStr) return [];
+  return genreStr
+    .split(/[,;/]+/)
+    .map(g => g.trim().toLowerCase())
+    .filter(g => g.length > 0);
+}
+
+/**
+ * Get user's preferences based on their ratings
+ */
+async function getUserPreferences(db: ReturnType<typeof getDbAsync> extends Promise<infer T> ? T : never, userId: string): Promise<UserPreferences> {
+  // Get all annotations with positive ratings (4-5 stars = liked)
+  const userRatings = await db
+    .select()
+    .from(userAnnotation)
+    .where(and(
+      eq(userAnnotation.userId, userId),
+      sql`${userAnnotation.rating} >= 4`
+    ))
+    .all() as UserAnnotation[];
+
+  if (userRatings.length === 0) {
+    return {
+      likedGenres: [],
+      likedAuthors: [],
+      likedPerformers: [],
+      avgRating: 0,
+    };
+  }
+
+  // Get book details for rated books
+  const bookIds = userRatings.map((r: UserAnnotation) => r.bookId);
+  if (bookIds.length === 0) {
+    return {
+      likedGenres: [],
+      likedAuthors: [],
+      likedPerformers: [],
+      avgRating: 0,
+    };
+  }
+
+  const books = await db
+    .select()
+    .from(book)
+    .all() as Book[];
+
+  // Create a map for quick lookup using books that match our rated book IDs
+  const bookMap = new Map<string, Book>();
+  for (const b of books) {
+    if (bookIds.includes(b.id)) {
+      bookMap.set(b.id, b);
+    }
+  }
+
+  // Aggregate preferences
+  const genreCounts = new Map<string, number>();
+  const authorCounts = new Map<string, number>();
+  const performerCounts = new Map<string, number>();
+  let totalRating = 0;
+
+  for (const rating of userRatings) {
+    const b = bookMap.get(rating.bookId);
+    if (!b) continue;
+
+    totalRating += rating.rating;
+
+    // Count genres
+    const genres = extractGenres(b.genre);
+    for (const g of genres) {
+      genreCounts.set(g, (genreCounts.get(g) || 0) + rating.rating);
+    }
+
+    // Count authors
+    if (b.authorName) {
+      const author = b.authorName.toLowerCase().trim();
+      if (author && author !== 'unknown') {
+        authorCounts.set(author, (authorCounts.get(author) || 0) + rating.rating);
+      }
+    }
+
+    // Count performers
+    if (b.performer) {
+      const performer = b.performer.toLowerCase().trim();
+      if (performer && performer !== 'unknown') {
+        performerCounts.set(performer, (performerCounts.get(performer) || 0) + rating.rating);
+      }
+    }
+  }
+
+  // Sort by count and take top preferences
+  const sortByCount = (a: [string, number], b: [string, number]) => b[1] - a[1];
+  
+  return {
+    likedGenres: Array.from(genreCounts.entries()).sort(sortByCount).slice(0, 10).map(([g]) => g),
+    likedAuthors: Array.from(authorCounts.entries()).sort(sortByCount).slice(0, 10).map(([a]) => a),
+    likedPerformers: Array.from(performerCounts.entries()).sort(sortByCount).slice(0, 10).map(([p]) => p),
+    avgRating: totalRating / userRatings.length,
+  };
+}
+
+/**
+ * Calculate recommendation score for a book
+ */
+function calculateScore(
+  book: { genre: string | null; authorName: string | null; performer: string | null; downloads: number | null; seeds: number | null; year: number | null; lastCommentDate: string | null },
+  prefs: UserPreferences,
+  weights: typeof DEFAULT_WEIGHTS
+): { score: number; reasons: string[] } {
+  let genreScore = 0;
+  let authorScore = 0;
+  let performerScore = 0;
+  const reasons: string[] = [];
+
+  // Genre match (30%)
+  const bookGenres = extractGenres(book.genre);
+  if (bookGenres.length > 0 && prefs.likedGenres.length > 0) {
+    const matches = bookGenres.filter(g => prefs.likedGenres.includes(g));
+    if (matches.length > 0) {
+      genreScore = matches.length / Math.max(bookGenres.length, prefs.likedGenres.length);
+      reasons.push(`Genre: ${matches[0]}`);
+    }
+  }
+
+  // Author match (25%)
+  if (book.authorName && prefs.likedAuthors.length > 0) {
+    const author = book.authorName.toLowerCase().trim();
+    if (prefs.likedAuthors.includes(author)) {
+      authorScore = 1;
+      reasons.push(`Author: ${book.authorName}`);
+    }
+  }
+
+  // Performer match (20%)
+  if (book.performer && prefs.likedPerformers.length > 0) {
+    const performer = book.performer.toLowerCase().trim();
+    if (prefs.likedPerformers.includes(performer)) {
+      performerScore = 1;
+      reasons.push(`Performer: ${book.performer}`);
+    }
+  }
+
+  // Popularity score (15%) - normalize downloads to 0-1
+  const maxDownloads = 50000; // approximate max
+  const popularityScore = Math.min((book.downloads || 0) / maxDownloads, 1);
+
+  // Recency score (10%) - based on year or last comment
+  let recencyScore = 0;
+  const currentYear = new Date().getFullYear();
+  if (book.year) {
+    recencyScore = Math.max(0, Math.min((book.year - 2000) / (currentYear - 2000), 1));
+  } else if (book.lastCommentDate) {
+    const commentYear = new Date(book.lastCommentDate).getFullYear();
+    recencyScore = Math.max(0, Math.min((commentYear - 2000) / (currentYear - 2000), 1));
+  }
+
+  const totalScore = 
+    (genreScore * weights.genre) +
+    (authorScore * weights.author) +
+    (performerScore * weights.performer) +
+    (popularityScore * weights.popularity) +
+    (recencyScore * weights.recency);
+
+  return { score: totalScore, reasons };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const searchParams = req.nextUrl.searchParams;
+    const limit = parseInt(searchParams.get('limit') || '20');
+    const minRating = parseInt(searchParams.get('minRating') || '0'); // Filter by rating if user wants
+    const userId = searchParams.get('userId');
+
+    // For now, we'll use a default user or require userId
+    // In production, this would come from session
+    const targetUserId = userId || 'default-user';
+
+    const db = await getDbAsync();
+
+    // Get user's preferences
+    const prefs = await getUserPreferences(db, targetUserId);
+
+    // If no preferences yet, return popular books
+    if (prefs.likedGenres.length === 0 && prefs.likedAuthors.length === 0) {
+      // Return popular books as default recommendations
+      const popularBooks = await db
+        .select()
+        .from(book)
+        .orderBy(desc(book.downloads))
+        .limit(limit)
+        .all();
+
+      // Add score based on normalized downloads for popular books
+      const maxDownloads = popularBooks.length > 0 ? (popularBooks[0].downloads || 1) : 1;
+      const scoredBooks = popularBooks.map(b => ({
+        ...b,
+        score: (b.downloads || 0) / maxDownloads,
+        reasons: ['Popular book']
+      }));
+
+      return NextResponse.json({
+        recommendations: scoredBooks,
+        message: 'No preferences yet. Showing popular books.',
+        reason: 'popular',
+      });
+    }
+
+    // Get books that user has already rated (to exclude them)
+    const ratedBooks = await db
+      .select({ bookId: userAnnotation.bookId })
+      .from(userAnnotation)
+      .where(eq(userAnnotation.userId, targetUserId))
+      .all();
+    const ratedBookIds = new Set(ratedBooks.map(r => r.bookId));
+
+    // Fetch all books (excluding rated ones)
+    // For 20k books, we need to do this in chunks or optimize
+    let allBooks = await db
+      .select()
+      .from(book)
+      .all();
+
+    // Filter out rated books
+    allBooks = allBooks.filter(b => !ratedBookIds.has(b.id));
+
+    // Also filter out books user marked as "dropped"
+    const droppedBooks = await db
+      .select({ bookId: userAnnotation.bookId })
+      .from(userAnnotation)
+      .where(and(
+        eq(userAnnotation.userId, targetUserId),
+        eq(userAnnotation.readStatus, 'dropped')
+      ))
+      .all();
+    const droppedBookIds = new Set(droppedBooks.map(r => r.bookId));
+    allBooks = allBooks.filter(b => !droppedBookIds.has(b.id));
+
+    // Score each book
+    const scoredBooks = allBooks.map(b => {
+      const { score, reasons } = calculateScore(b, prefs, DEFAULT_WEIGHTS);
+      return { ...b, score, reasons };
+    });
+
+    // Sort by score descending
+    scoredBooks.sort((a, b) => b.score - a.score);
+
+    // Take top recommendations
+    const recommendations = scoredBooks.slice(0, limit);
+
+    return NextResponse.json({
+      recommendations,
+      preferences: {
+        likedGenres: prefs.likedGenres.slice(0, 5),
+        likedAuthors: prefs.likedAuthors.slice(0, 5),
+        likedPerformers: prefs.likedPerformers.slice(0, 5),
+        totalLiked: prefs.likedGenres.length > 0 ? 'Based on your ratings' : 'No ratings yet',
+      },
+      reason: 'hybrid-scoring',
+    });
+  } catch (error) {
+    console.error('Recommendations error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

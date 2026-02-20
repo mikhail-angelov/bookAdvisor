@@ -190,7 +190,13 @@ function BooksContent() {
                         </select>
                     </div>
 
-                    <div className="hidden md:block">
+                    <div className="hidden md:flex items-center gap-2">
+                        <button
+                            onClick={() => router.push('/recommendations')}
+                            className="px-4 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                            Recommended
+                        </button>
                         <button
                             onClick={async () => {
                                 await fetch('/api/auth/logout', { method: 'POST' });
@@ -199,6 +205,15 @@ function BooksContent() {
                             className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                         >
                             Logout
+                        </button>
+                    </div>
+                    
+                    <div className="flex md:hidden items-center gap-2">
+                        <button
+                            onClick={() => router.push('/recommendations')}
+                            className="px-3 py-2 text-sm font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                            Recommended
                         </button>
                     </div>
                 </div>
