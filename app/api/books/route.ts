@@ -30,17 +30,86 @@ export async function GET(req: NextRequest) {
     const conditions = [];
 
     if (q) {
+      // For case-insensitive search with Cyrillic, we need to handle multiple case variations
+      // Since SQLite LIKE is case-sensitive for Unicode, we check for common case variations
+      const lowerQ = q.toLowerCase();
+      const upperQ = q.toUpperCase();
+      const capitalizedQ = q.charAt(0).toUpperCase() + q.slice(1).toLowerCase();
+      
       conditions.push(
         or(
+          // Check for exact match (case-sensitive)
           like(book.title, `%${q}%`),
           like(book.authorName, `%${q}%`),
-          like(book.series, `%${q}%`)
+          like(book.series, `%${q}%`),
+          // Check for lowercase version
+          like(book.title, `%${lowerQ}%`),
+          like(book.authorName, `%${lowerQ}%`),
+          like(book.series, `%${lowerQ}%`),
+          // Check for uppercase version  
+          like(book.title, `%${upperQ}%`),
+          like(book.authorName, `%${upperQ}%`),
+          like(book.series, `%${upperQ}%`),
+          // Check for capitalized version
+          like(book.title, `%${capitalizedQ}%`),
+          like(book.authorName, `%${capitalizedQ}%`),
+          like(book.series, `%${capitalizedQ}%`)
         )
       );
     }
 
     if (genre) {
-      conditions.push(eq(book.genre, genre));
+      // Match genre as a separate item in comma/semicolon/slash-separated lists
+      // We need to handle case-insensitive matching for Cyrillic characters
+      // SQLite LIKE is case-sensitive for Unicode and LOWER() doesn't work well with Cyrillic
+      // So we check for multiple case variations
+      
+      // The genre from the API is normalized (capitalized first letter)
+      // We'll check for multiple case variations to handle different data in DB
+      const normalizedGenre = genre; // As returned by genres API: "Фантастика"
+      const lowerGenre = genre.toLowerCase(); // "фантастика"
+      const upperGenre = genre.toUpperCase(); // "ФАНТАСТИКА"
+      
+      // Helper to create case-insensitive patterns
+      const createPatterns = (searchGenre: string) => [
+        // Exact match
+        sql`${book.genre} = ${searchGenre}`,
+        // Genre at start followed by delimiter
+        sql`${book.genre} LIKE ${searchGenre + ',%'}`,
+        sql`${book.genre} LIKE ${searchGenre + ', %'}`,
+        sql`${book.genre} LIKE ${searchGenre + ';%'}`,
+        sql`${book.genre} LIKE ${searchGenre + '; %'}`,
+        sql`${book.genre} LIKE ${searchGenre + '/%'}`,
+        sql`${book.genre} LIKE ${searchGenre + '/ %'}`,
+        // Genre in middle with delimiters
+        sql`${book.genre} LIKE ${'%,' + searchGenre + ',%'}`,
+        sql`${book.genre} LIKE ${'%, ' + searchGenre + ',%'}`,
+        sql`${book.genre} LIKE ${'%,' + searchGenre + ', %'}`,
+        sql`${book.genre} LIKE ${'%, ' + searchGenre + ', %'}`,
+        sql`${book.genre} LIKE ${'%;' + searchGenre + ';%'}`,
+        sql`${book.genre} LIKE ${'%; ' + searchGenre + ';%'}`,
+        sql`${book.genre} LIKE ${'%;' + searchGenre + '; %'}`,
+        sql`${book.genre} LIKE ${'%; ' + searchGenre + '; %'}`,
+        sql`${book.genre} LIKE ${'%/' + searchGenre + '/%'}`,
+        sql`${book.genre} LIKE ${'%/ ' + searchGenre + '/%'}`,
+        sql`${book.genre} LIKE ${'%/' + searchGenre + '/ %'}`,
+        sql`${book.genre} LIKE ${'%/ ' + searchGenre + '/ %'}`,
+        // Genre at end preceded by delimiter
+        sql`${book.genre} LIKE ${'%,' + searchGenre}`,
+        sql`${book.genre} LIKE ${'%, ' + searchGenre}`,
+        sql`${book.genre} LIKE ${'%;' + searchGenre}`,
+        sql`${book.genre} LIKE ${'%; ' + searchGenre}`,
+        sql`${book.genre} LIKE ${'%/' + searchGenre}`,
+        sql`${book.genre} LIKE ${'%/ ' + searchGenre}`,
+      ];
+      
+      // Check for multiple case variations
+      const normalizedPatterns = createPatterns(normalizedGenre);
+      const lowerPatterns = createPatterns(lowerGenre);
+      const upperPatterns = createPatterns(upperGenre);
+      
+      // Combine all patterns
+      conditions.push(or(...normalizedPatterns, ...lowerPatterns, ...upperPatterns));
     }
 
     const col = SORTABLE_COLUMNS.includes(sortBy) ? columnMap[sortBy] : book.lastCommentDate;
@@ -75,4 +144,19 @@ export async function GET(req: NextRequest) {
     console.error('Fetch books error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+// Normalize genre for search (same logic as genres API)
+function normalizeGenreForSearch(genre: string): string {
+  if (!genre || genre.length < 2) return genre;
+  
+  // Remove leading/trailing punctuation (non-letters, non-digits)
+  genre = genre.replace(/^[^a-zA-Zа-яА-ЯёЁ0-9]+|[^a-zA-Zа-яА-ЯёЁ0-9]+$/g, '');
+  
+  // For search, we want to match case-insensitively
+  // Since SQLite LIKE is case-sensitive for Unicode, we'll lowercase everything
+  // This matches the genres API normalization where "фэнтези" becomes "Фэнтези"
+  // But for search we want to match both "Фэнтези" and "фэнтези"
+  // Actually, let's lowercase to match more cases
+  return genre.toLowerCase();
 }
