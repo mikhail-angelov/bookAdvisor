@@ -26,17 +26,14 @@ CREATE TABLE `books` (
 	`bitrate` text,
 	`duration` text,
 	`created_at` text
-);
---> statement-breakpoint
+);--> statement-breakpoint
 CREATE UNIQUE INDEX `books_crawl_id_unique` ON `books` (`crawl_id`);--> statement-breakpoint
---> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`username` text,
 	`email` text NOT NULL,
 	`created_at` text NOT NULL
-);
---> statement-breakpoint
+);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
 CREATE TABLE `user_annotations` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -50,6 +47,5 @@ CREATE TABLE `user_annotations` (
 	`created_at` text NOT NULL,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action,
 	FOREIGN KEY (`book_id`) REFERENCES `books`(`id`) ON UPDATE no action ON DELETE no action
-);
---> statement-breakpoint
+);--> statement-breakpoint
 CREATE UNIQUE INDEX `user_book_idx` ON `user_annotations` (`user_id`,`book_id`);

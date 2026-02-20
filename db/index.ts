@@ -81,7 +81,30 @@ async function initCrawlProdDatabase(): Promise<void> {
 async function initCrawlTestDatabase(): Promise<void> {
   crawlDbInstance = new Database(":memory:");
   crawlDb = drizzle(crawlDbInstance, { schema: crawlSchema });
-  migrate(crawlDb, { migrationsFolder: "./db/migrations" });
+
+  // Create tables manually using schema
+  crawlDbInstance.exec(`
+    CREATE TABLE IF NOT EXISTS crawls (
+      id TEXT PRIMARY KEY NOT NULL,
+      url TEXT NOT NULL UNIQUE,
+      status TEXT DEFAULT 'pending' NOT NULL,
+      type TEXT DEFAULT 'torrents-page' NOT NULL,
+      code_page TEXT,
+      html_body TEXT,
+      created_at TEXT NOT NULL
+    );
+    
+    CREATE TABLE IF NOT EXISTS crawl_history (
+      id TEXT PRIMARY KEY NOT NULL,
+      forum_id INTEGER NOT NULL,
+      pages_crawled INTEGER DEFAULT 0,
+      torrents_found INTEGER DEFAULT 0,
+      started_at TEXT NOT NULL,
+      completed_at TEXT,
+      status TEXT DEFAULT 'running',
+      created_at TEXT NOT NULL
+    );
+  `);
 
   console.log("Crawl test database initialized (in-memory)");
 }
