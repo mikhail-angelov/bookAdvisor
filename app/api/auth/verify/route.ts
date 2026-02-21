@@ -4,6 +4,9 @@ import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyMagicLinkToken, createSessionToken } from '@/lib/auth';
 
+// Force dynamic rendering to prevent any caching
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const token = req.nextUrl.searchParams.get('token');

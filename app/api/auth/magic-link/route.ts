@@ -5,6 +5,9 @@ import { eq } from 'drizzle-orm';
 import { createMagicLinkToken, sendMagicLinkEmail } from '@/lib/auth';
 import { v4 as uuidv4 } from 'uuid';
 
+// Force dynamic rendering to prevent any caching
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();

@@ -4,9 +4,16 @@ import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifySessionToken } from '@/lib/auth';
 
+// Force dynamic rendering to prevent any caching
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
+    console.log('[auth/me] Request URL:', req.url);
+    console.log('[auth/me] All cookies:', JSON.stringify(req.cookies.getAll()));
+    
     const token = req.cookies.get('auth_token')?.value;
+    console.log('[auth/me] Token from cookie:', token ? 'present' : 'missing');
 
     if (!token) {
       console.log('[auth/me] No token in cookies');
