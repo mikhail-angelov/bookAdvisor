@@ -5,6 +5,8 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Book } from '@/db/schema';
 import BookCard from '@/components/BookCard';
 import { toast } from 'sonner';
+import { useAppStore } from '@/app/store';
+import Link from 'next/link';
 
 type SortColumn = 'title' | 'genre' | 'seeds' | 'downloads' | 'lastCommentDate';
 type SortDir = 'asc' | 'desc';
@@ -31,6 +33,25 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 function BooksContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { user, setUser } = useAppStore();
+
+    // Check auth on mount
+    useEffect(() => {
+        const checkAuth = async () => {
+            try {
+                const res = await fetch("/api/auth/me");
+                const data = await res.json();
+                if (data.authenticated && data.user) {
+                    setUser(data.user);
+                } else {
+                    setUser(null);
+                }
+            } catch (err) {
+                setUser(null);
+            }
+        };
+        checkAuth();
+    }, [setUser]);
 
     const [books, setBooks] = useState<Book[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -148,6 +169,19 @@ function BooksContent() {
         return pages;
     };
 
+    const onRecommendation = () =>{
+        if(!user){
+            toast.info('Please sign in to see personalized recommendations', {
+            action: {
+              label: 'Sign In',
+              onClick: () => router.push('/login'),
+            },
+          });
+            return
+        }
+        router.push('/recommendations')
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
             {/* Header */}
@@ -192,20 +226,26 @@ function BooksContent() {
 
                     <div className="hidden md:flex items-center gap-2">
                         <button
-                            onClick={() => router.push('/recommendations')}
+                            onClick={onRecommendation}
                             className="px-4 py-2 text-sm font-medium text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
                         >
                             Recommended
                         </button>
-                        <button
-                            onClick={async () => {
-                                await fetch('/api/auth/logout', { method: 'POST' });
-                                router.push('/login');
-                            }}
-                            className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                        >
-                            Logout
-                        </button>
+                        {user ? (
+                            <button
+                                onClick={async () => {
+                                    await fetch('/api/auth/logout', { method: 'POST' });
+                                    setUser(null);
+                                }}
+                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                            >
+                                Logout
+                            </button>
+                        ) : (
+                            <Link href="/login" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">
+                                Sign In
+                            </Link>
+                        )}
                     </div>
                     
                     <div className="flex md:hidden items-center gap-2">
