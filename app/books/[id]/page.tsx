@@ -108,60 +108,15 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
             </header>
 
             <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Hero Section */}
-                <div className="flex flex-col lg:flex-row-reverse gap-8 mb-10">
-                    {/* Book Cover - Right Side, Smaller */}
-                    <div className="lg:w-56 flex-shrink-0">
-                        <div className="relative">
-                            {book.imageUrl ? (
-                                <img
-                                    src={book.imageUrl}
-                                    alt={book.title}
-                                    className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg"
-                                />
-                            ) : (
-                                <div className="w-full aspect-[2/3] bg-slate-200 rounded-lg flex items-center justify-center">
-                                    <svg className="w-16 h-16 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                    </svg>
-                                </div>
-                            )}
-                            
-                            {/* Quick Status Badge */}
-                            <div className={`absolute -bottom-3 left-1/2 -translate-x-1/2 ${statusConfig.color} text-white px-4 py-1.5 rounded-full text-xs font-medium shadow-md flex items-center gap-1.5`}>
-                                <span>{statusConfig.icon}</span>
-                                <span>{statusConfig.label}</span>
-                            </div>
-                        </div>
-                        
-                        {/* View Topic Link */}
-                        {book.url && (
-                            <a
-                                href={book.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="mt-6 inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors w-full justify-center"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                </svg>
-                                View Topic
-                            </a>
-                        )}
-                    </div>
-
-                    {/* Book Info - Left Side */}
-                    <div className="flex-1 pt-2">
-                        {/* Category & Genre */}
+                {/* Layout: Left content, Right sidebar */}
+                <div className="flex flex-col lg:flex-row gap-8">
+                    {/* Left: Main Content */}
+                    <div className="flex-1">
+                        {/* Category */}
                         <div className="flex flex-wrap gap-2 mb-4">
                             <span className="px-2.5 py-1 bg-slate-800 text-white text-xs font-medium rounded">
                                 {book.category}
                             </span>
-                            {book.genre && (
-                                <span className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded">
-                                    {book.genre}
-                                </span>
-                            )}
                         </div>
 
                         {/* Title & Author */}
@@ -172,14 +127,44 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             by <span className="text-slate-800 font-medium">{book.authorName || 'Unknown Author'}</span>
                         </p>
 
+                        {/* Meta Grid - 2 columns label:value */}
+                        <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 mb-6">
+                            {book.authors && (
+                                <div className="grid grid-cols-2 p-3">
+                                    <div className="text-sm text-slate-500">Author</div>
+                                    <div className="text-sm font-medium text-slate-800">{book.authors}</div>
+                                </div>
+                            )}
+                            {book.performer && (
+                                <div className="grid grid-cols-2 p-3">
+                                    <div className="text-sm text-slate-500">Performer</div>
+                                    <div className="text-sm font-medium text-slate-800">{book.performer}</div>
+                                </div>
+                            )}
+                            {book.genre && (
+                                <div className="grid grid-cols-2 p-3">
+                                    <div className="text-sm text-slate-500">Genre</div>
+                                    <div className="text-sm font-medium text-slate-800">{book.genre}</div>
+                                </div>
+                            )}
+                            {book.series && (
+                                <div className="grid grid-cols-2 p-3">
+                                    <div className="text-sm text-slate-500">Series</div>
+                                    <div className="text-sm font-medium text-slate-800">
+                                        {book.series}
+                                        {book.bookNumber && <span className="text-slate-500"> #{book.bookNumber}</span>}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Meta Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
-                            {book.series && (
+                            {book.duration && (
                                 <div className="bg-white rounded-lg p-4 border border-slate-200">
-                                    <div className="text-xs text-slate-500 uppercase tracking-wide">Series</div>
+                                    <div className="text-xs text-slate-500 uppercase tracking-wide">Duration</div>
                                     <div className="font-semibold text-slate-800 mt-1">
-                                        {book.series}
-                                        {book.bookNumber && <span className="text-slate-500 font-normal"> #{book.bookNumber}</span>}
+                                        {book.duration}
                                     </div>
                                 </div>
                             )}
@@ -199,7 +184,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         </div>
 
-                        {/* Torrent Details */}
+                        {/* Torrent Stats */}
                         <div className="grid grid-cols-3 gap-4 mb-6">
                             <div className="text-center p-3 bg-emerald-50 rounded-lg">
                                 <div className="text-2xl font-bold text-emerald-600">{book.seeds || 0}</div>
@@ -214,12 +199,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                 <div className="text-xs text-blue-700 uppercase tracking-wide">Comments</div>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                <div className="grid lg:grid-cols-3 gap-8">
-                    {/* Main Content */}
-                    <div className="lg:col-span-2 space-y-6">
                         {/* Description */}
                         {book.description && (
                             <section className="bg-white rounded-xl p-6 border border-slate-200">
@@ -231,23 +211,56 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                         )}
                     </div>
 
-                    {/* Sidebar - Annotation Panel */}
-                    <div className="lg:col-span-1">
-                        <div className="bg-white rounded-xl p-6 border border-slate-200 sticky top-24">
-                            <h2 className="text-lg font-semibold text-slate-900 mb-6">My Notes</h2>
+                    {/* Right: Sidebar */}
+                    <div className="lg:w-72 flex-shrink-0">
+                        {/* Book Cover */}
+                        <div className="mb-4">
+                            {book.imageUrl ? (
+                                <img
+                                    src={book.imageUrl}
+                                    alt={book.title}
+                                    className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg"
+                                />
+                            ) : (
+                                <div className="w-full aspect-[2/3] bg-slate-200 rounded-lg flex items-center justify-center">
+                                    <svg className="w-16 h-16 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
 
-                            <div className="space-y-6">
+                        {/* View Topic Link */}
+                        {book.url && (
+                            <a
+                                href={book.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mb-6 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors w-full"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                                View Topic
+                            </a>
+                        )}
+
+                        {/* My Notes Panel */}
+                        <div className="bg-white rounded-xl p-5 border border-slate-200">
+                            <h2 className="text-base font-semibold text-slate-900 mb-4">My Notes</h2>
+
+                            <div className="space-y-4">
                                 {/* Read Status */}
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                                        Read Status
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                                        Status
                                     </label>
-                                    <div className="grid grid-cols-2 gap-2">
+                                    <div className="grid grid-cols-2 gap-1.5">
                                         {Object.entries(readStatusConfig).map(([value, config]) => (
                                             <button
                                                 key={value}
                                                 onClick={() => setAnnotation({ ...annotation, readStatus: value as any })}
-                                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                                className={`px-2 py-1.5 rounded text-xs font-medium transition-all ${
                                                     annotation.readStatus === value
                                                         ? `${config.color} text-white`
                                                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -261,18 +274,18 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
                                 {/* Rating */}
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                                        Your Rating
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                                        {`Rating (${book.authors})`}
                                     </label>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-0.5">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button
                                                 key={star}
                                                 onClick={() => setAnnotation({ ...annotation, rating: annotation.rating === star ? 0 : star })}
-                                                className="p-1 transition-transform hover:scale-110"
+                                                className="p-0.5"
                                             >
                                                 <svg 
-                                                    className={`w-8 h-8 ${star <= (annotation.rating || 0) ? 'text-amber-400' : 'text-slate-300 hover:text-amber-200'}`}
+                                                    className={`w-6 h-6 ${star <= (annotation.rating || 0) ? 'text-amber-400' : 'text-slate-300'}`}
                                                     fill="currentColor" 
                                                     viewBox="0 0 20 20"
                                                 >
@@ -285,18 +298,18 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
                                 {/* Performance Rating */}
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                                        Performance Rating (Audio)
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                                        {`Audio (${book.performer})`}
                                     </label>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-0.5">
                                         {[1, 2, 3, 4, 5].map((star) => (
                                             <button
                                                 key={star}
                                                 onClick={() => setAnnotation({ ...annotation, performanceRating: annotation.performanceRating === star ? 0 : star })}
-                                                className="p-1 transition-transform hover:scale-110"
+                                                className="p-0.5"
                                             >
                                                 <svg 
-                                                    className={`w-8 h-8 ${star <= (annotation.performanceRating || 0) ? 'text-emerald-400' : 'text-slate-300 hover:text-emerald-200'}`}
+                                                    className={`w-6 h-6 ${star <= (annotation.performanceRating || 0) ? 'text-emerald-400' : 'text-slate-300'}`}
                                                     fill="currentColor" 
                                                     viewBox="0 0 20 20"
                                                 >
@@ -309,14 +322,14 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
                                 {/* Notes */}
                                 <div>
-                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-3">
-                                        Personal Notes
+                                    <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
+                                        Notes
                                     </label>
                                     <textarea
                                         value={annotation.annotation || ''}
                                         onChange={(e) => setAnnotation({ ...annotation, annotation: e.target.value })}
-                                        placeholder="Add your thoughts, notes, or review..."
-                                        className="w-full h-40 px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent resize-none"
+                                        placeholder="Add notes..."
+                                        className="w-full h-28 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent resize-none"
                                     />
                                 </div>
 
@@ -324,9 +337,9 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                 <button
                                     onClick={handleSaveAnnotation}
                                     disabled={isSaving}
-                                    className="w-full py-3 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    className="w-full py-2 bg-slate-900 text-white rounded-lg font-medium text-sm hover:bg-slate-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    {isSaving ? 'Saving...' : 'Save Notes'}
+                                    {isSaving ? 'Saving...' : 'Save'}
                                 </button>
                             </div>
                         </div>
