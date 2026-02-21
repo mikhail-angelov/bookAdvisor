@@ -167,14 +167,13 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       category,
       seeds: seeders,
       size,
-      authorName: structuredData.authorFirstName && structuredData.authorLastName 
-        ? `${structuredData.authorFirstName} ${structuredData.authorLastName}`.trim()
+      authorName: structuredData.authors
+        ? `${structuredData.authors}`.trim()
         : authorName,
       authorPosts,
       topicTitle,
       year: structuredData.year,
-      authorFirstName: structuredData.authorFirstName,
-      authorLastName: structuredData.authorLastName,
+      authors: structuredData.authors,
       performer: structuredData.performer,
       series: structuredData.series,
       bookNumber: structuredData.bookNumber,
@@ -191,8 +190,7 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
   private extractStructuredData(postBody: cheerio.Cheerio<any>, $: cheerio.CheerioAPI) {
     const result = {
       year: null as number | null,
-      authorFirstName: '',
-      authorLastName: '',
+      authors: '',
       performer: '',
       series: '',
       bookNumber: '',
@@ -211,28 +209,122 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       result.imageUrl = $img.attr('title') || '';
     }
     
+    // First, try to extract authors from styled spans (e.g., "Аркадий и Борис Стругацкие")
+    // This format appears in some posts where authors are displayed as colored text
+    if (!result.authors) {
+      const authorSpan = postBody.find('span.post-b span.p-color').first();
+      if (authorSpan.length > 0) {
+        const authorText = authorSpan.text().trim();
+        // Check if this looks like an author name (contains common author patterns)
+        if (authorText && !authorText.includes('Год') && !authorText.includes('Исполнитель') && 
+            !authorText.includes('Жанр') && !authorText.includes('Цикл')) {
+          result.authors = authorText;
+        }
+      }
+    }
+    
+    // Handle multiple label formats:
+    // 1. <span class="post-b">Label</span>: Value
+    // 2. <span class="post-b">Label</span>: <span class="post-b">Value</span>
+    // 3. <span class="post-b">Label</span>: <span class="p-color">Value</span>
+    // 4. <span class="p-color"><span class="post-b">Label</span></span>: Value
     postBody.find('.post-b').each((_, el) => {
       const $label = $(el);
+      const isNestedInPColor = $label.parent().hasClass('p-color');
+      
+      // Get the label text
       const labelText = $label.text().trim();
       let value = '';
-      let nextNode = $label[0].nextSibling;
-      while (nextNode && (nextNode.nodeType !== 1 || (nextNode as any).tagName !== 'br')) {
-        if (nextNode.nodeType === 3) value += (nextNode as any).data;
-        nextNode = nextNode.nextSibling;
+      
+      // If nested in p-color, we need to look at the parent's next sibling
+      if (isNestedInPColor) {
+        const $parentPColor = $label.parent();
+        const $nextSibling = $parentPColor.next();
+        if ($nextSibling.length > 0) {
+          // Check if next sibling is a text node or a span
+          const nextNodeType = ($nextSibling[0] as unknown as Node).nodeType;
+          if (nextNodeType === 3) {
+            // Text node - just get text and clean up
+            value = $nextSibling.text().replace(/^:\s*/, '').trim();
+          } else if (nextNodeType === 1) {
+            // Element node - check if it's a p-color span with the value
+            if ($nextSibling.hasClass('p-color')) {
+              value = $nextSibling.text().trim();
+            } else {
+              value = $nextSibling.text().replace(/^:\s*/, '').trim();
+            }
+          }
+        }
+      } else {
+        // Check if the next sibling is a span with post-b class (nested case like "Исполнитель: Герасимов")
+        const $nextSpan = $label.next('span.post-b');
+        if ($nextSpan.length > 0) {
+          value = $nextSpan.text().trim();
+        } else {
+          // Get text from text nodes after the label (format: "Label: Value")
+          // This handles both plain text values, spans with p-color class, and links
+          let nextNode = $label[0].nextSibling;
+          let foundValue = false;
+          while (nextNode) {
+            // Stop at <br> or <hr> tags or any label span
+            if (nextNode.nodeType === 1) {
+              const tagName = (nextNode as any).tagName?.toUpperCase();
+              // Stop at line breaks and label spans
+              if (tagName === 'BR' || tagName === 'HR' || tagName === 'SPAN') {
+                const $nextEl = $(nextNode);
+                // Stop at post-b labels (but continue if it's a value span)
+                if ($nextEl.hasClass('post-b') || $nextEl.hasClass('p-color')) {
+                  break;
+                }
+              }
+            }
+            if (nextNode.nodeType === 3) {
+              // Text node - accumulate text, then remove the ": " prefix
+              value += (nextNode as any).data;
+            } else if (nextNode.nodeType === 1) {
+              const tagName = (nextNode as any).tagName?.toUpperCase();
+              if (tagName === 'SPAN') {
+                const $nextEl = $(nextNode);
+                // Check if this is a p-color or post-b span containing the value
+                if ($nextEl.hasClass('p-color') || $nextEl.hasClass('post-b')) {
+                  value = $nextEl.text().trim();
+                  foundValue = true;
+                  break;
+                }
+              } else if (tagName === 'A') {
+                // Handle links (e.g., performer name wrapped in <a> tag)
+                value = $(nextNode).text().trim();
+                foundValue = true;
+                break;
+              }
+            }
+            nextNode = nextNode.nextSibling;
+          }
+          if (!foundValue) {
+            value = value.replace(/^:\s*/, '').trim();
+          }
+        }
       }
-      value = value.replace(/^:\s*/, '').trim();
       
       if (labelText.includes('Год выпуска') || labelText.includes('Year')) {
         const yearMatch = value.match(/\d{4}/);
         if (yearMatch) result.year = parseInt(yearMatch[0], 10);
-      } else if (labelText.includes('Фамилия автора')) result.authorLastName = value;
-      else if (labelText.includes('Имя автора')) result.authorFirstName = value;
-      else if (labelText.includes('Исполнитель')) result.performer = value;
+      } else if (labelText.includes('Фамилия автора')) result.authors = result.authors + ' ' +value;
+      else if (labelText.includes('Имя автора')) result.authors = result.authors + ' ' +value;
+      else if (labelText.includes('Авторы') || labelText === 'Автор') result.authors = value;
+      else if (labelText.includes('Исполнител')) {
+        // Handle comma-separated performers like "Григорий Метелица, Наталья Беляева"
+        // Matches both "Исполнитель" (singular) and "Исполнители" (plural)
+        result.performer = value.split(',').map(p => p.trim()).join(', ');
+      }
       else if (labelText.includes('Цикл/серия')) result.series = value;
       else if (labelText.includes('Номер книги')) result.bookNumber = value;
-      else if (labelText.includes('Жанр')) result.genre = value;
+      else if (labelText.includes('Жанр')) {
+        // Handle comma-separated genres like "боевое фэнтези, попаданцы"
+        result.genre = value.split(',').map(g => g.trim()).join(', ');
+      }
       else if (labelText.includes('Тип издания')) result.editionType = value;
-      else if (labelText.includes('Аудиокодек')) result.audioCodec = value;
+      else if (labelText.includes('Аудио кодек') || labelText.includes('Аудиокодек')) result.audioCodec = value;
       else if (labelText.includes('Битрейт')) result.bitrate = value;
       else if (labelText.includes('Время звучания')) result.duration = value;
       else if (labelText.includes('Описание')) {
@@ -247,6 +339,22 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
         result.description = desc.trim();
       }
     });
+    
+    // If performer still wasn't found, try extracting from p-color spans after labels
+    if (!result.performer) {
+      postBody.find('span.p-color span.post-b').each((_, el) => {
+        const text = $(el).text().trim();
+        if (text && !text.includes('Год') && !text.includes('Исполнитель') && 
+            !text.includes('Жанр') && !text.includes('Цикл') && !text.includes('Аудио') &&
+            !text.includes('Номер') && !text.includes('Тип') && !text.includes('Описание') &&
+            !text.includes('Фамилия') && !text.includes('Имя')) {
+          // This might be a performer or other value
+          if (!result.performer && text.length > 2 && !text.includes('века')) {
+            result.performer = text;
+          }
+        }
+      });
+    }
     
     return result;
   }

@@ -4,7 +4,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import chunk from 'lodash/chunk';
-import { eq, and, inArray, sql } from 'drizzle-orm';
+import { eq, and, inArray, sql, count } from 'drizzle-orm';
 import { getCrawlDbAsync, getAppDbAsync } from '../db/index';
 import { crawl, crawlHistory, book } from '../db/index';
 import type { Crawl, NewCrawl, NewCrawlHistory } from '../db/schema-crawl';
@@ -211,10 +211,14 @@ export async function markCrawlRecordFailed(id: string, error: string): Promise<
  * Get all completed crawls, optionally filtered by type and excluding already-processed ones.
  * This function needs both databases - crawlDb for crawl records and prodDb for book records.
  */
-export async function getCompletedCrawls(options: {
-  type?: CrawlType | string;
-  excludeProcessed?: boolean;
-} = {}): Promise<Crawl[]> {
+export async function getCompletedCrawls(
+  options: {
+    type?: CrawlType | string;
+    excludeProcessed?: boolean;
+    limit?: number
+    offset?: number
+  } = {},
+): Promise<Crawl[]> {
   const crawlDb = await getCrawlDbAsync();
   const prodDb = await getAppDbAsync();
   
@@ -227,13 +231,45 @@ export async function getCompletedCrawls(options: {
       .from(book)
       .where(sql`${book.crawlId} IS NOT NULL`);
 
-    return crawlDb
+    let query = crawlDb
       .select()
       .from(crawl)
       .where(and(...conditions, sql`${crawl.id} NOT IN (${processedIds})`));
+    
+    return (options.limit && (options.offset || options.offset ===0)) ? query.limit(options.limit).offset(options.offset) : query;
   }
 
-  return crawlDb.select().from(crawl).where(and(...conditions));
+  let query = crawlDb.select().from(crawl).where(and(...conditions));
+  return (options.limit && (options.offset || options.offset ===0)) ? query.limit(options.limit).offset(options.offset) : query;
+}
+export async function getCompletedCrawlsCount(
+  options: {
+    type?: CrawlType | string;
+    excludeProcessed?: boolean;
+  } = {},
+): Promise<number> {
+  const crawlDb = await getCrawlDbAsync();
+  const prodDb = await getAppDbAsync();
+  
+  const conditions = [eq(crawl.status, CrawlStatus.COMPLETED)];
+  if (options.type) conditions.push(eq(crawl.type, options.type));
+
+  if (options.excludeProcessed) {
+    const processedIds = prodDb
+      .select({ id: book.crawlId })
+      .from(book)
+      .where(sql`${book.crawlId} IS NOT NULL`);
+
+    const result = await crawlDb
+      .select({ count: count() })
+      .from(crawl)
+      .where(and(...conditions, sql`${crawl.id} NOT IN (${processedIds})`));
+    
+    return result[0].count;
+  }
+
+  const result = await crawlDb.select({ count: count() }).from(crawl).where(and(...conditions));
+  return result[0].count;
 }
 
 /**
@@ -275,23 +311,19 @@ export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
   const prodDb = await getAppDbAsync();
   let totalUpdated = 0;
 
-  for (const booksChunk of chunk(books, CHUNK_SIZE)) {
-    const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
+  const urls = books.map(b => b.url ?? '').filter(Boolean);
 
-    const existing = urls.length > 0
-      ? await prodDb.select({ url: book.url }).from(book).where(inArray(book.url, urls))
-      : [];
+  const existing = urls.length > 0
+    ? await prodDb.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+    : [];
 
-    const existingUrls = new Set(existing.map(r => r.url));
-    const toUpdate = booksChunk.filter(b => b.url && existingUrls.has(b.url));
+  const existingUrls = new Set(existing.map(r => r.url));
+  const toUpdate = books.filter(b => b.url && existingUrls.has(b.url));
 
-    for (const { url, ...data } of toUpdate) {
-      if (url) {
-        await prodDb.update(book).set(data).where(eq(book.url, url));
-        totalUpdated++;
-      }
+  for (const { url, ...data } of toUpdate) {
+    if (url) {
+      await prodDb.update(book).set(data).where(eq(book.url, url));
+      totalUpdated++;
     }
   }
-
-  console.log(`Successfully processed ${books.length} books (${totalUpdated} updated)`);
 }
