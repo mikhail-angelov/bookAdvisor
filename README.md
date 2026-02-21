@@ -1,7 +1,11 @@
 # Book Advisor
 
 A web application for browsing and managing audio book collections from Rutracker. Built with Next.js, Drizzle ORM, and SQLite.
+<img width="480" alt="image" src="https://github.com/user-attachments/assets/3ccd0f08-b9b4-4faf-b6a4-479a190245b1" />
+<img width="480"  alt="image" src="https://github.com/user-attachments/assets/2a99ee51-0b4c-405c-a348-f088515bce27" />
+<img width="480" alt="image" src="https://github.com/user-attachments/assets/e63903d1-7354-4f46-956e-c47d2cbe704b" />
 
+[Live Demo](https://advisor.bconf.com)
 ## Features
 
 - **Browse Books**: Search and filter audio books by title, author, genre
