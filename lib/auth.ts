@@ -78,8 +78,10 @@ export function verifySessionToken(token: string): SessionPayload {
 export async function sendMagicLinkEmail(
   email: string,
   token: string,
+  baseUrl?: string,
 ): Promise<void> {
-  const magicLink = `${APP_URL}/api/auth/verify?token=${token}`;
+  const appUrl = baseUrl || APP_URL;
+  const magicLink = `${appUrl}/api/auth/verify?token=${token}`;
 
   // For development, log to console if no SMTP configured
   if (!process.env.POST_SERVICE_URL) {

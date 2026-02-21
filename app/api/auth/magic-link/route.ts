@@ -31,8 +31,19 @@ export async function POST(req: NextRequest) {
     // Generate token
     const token = createMagicLinkToken(email);
     
-    // Send email
-    await sendMagicLinkEmail(email, token);
+    // Determine the base URL for the verification link (handles proxy/load balancer scenarios)
+    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+    
+    // If behind proxy, use the request's protocol and host from headers
+    const forwardedProto = req.headers.get('x-forwarded-proto');
+    const forwardedHost = req.headers.get('x-forwarded-host');
+    
+    if (forwardedProto && forwardedHost) {
+      baseUrl = `${forwardedProto}://${forwardedHost}`;
+    }
+    
+    // Send email with the correct base URL
+    await sendMagicLinkEmail(email, token, baseUrl);
 
     return NextResponse.json({ message: 'Magic link sent' });
   } catch (error) {
