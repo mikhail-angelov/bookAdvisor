@@ -2,6 +2,9 @@ import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 
 const JWT_SECRET = process.env.AUTH_SECRET || "dev-secret-change-in-production";
+console.log('[auth] AUTH_SECRET loaded, starts with:', JWT_SECRET.substring(0, 10));
+console.log('[auth] AUTH_SECRET env var exists:', !!process.env.AUTH_SECRET);
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export interface MagicLinkPayload {
@@ -65,7 +68,12 @@ export function createSessionToken(userId: string, email: string): string {
  * Verify session JWT
  */
 export function verifySessionToken(token: string): SessionPayload {
+  console.log('[verifySessionToken] Token received, length:', token.length);
+  console.log('[verifySessionToken] JWT_SECRET starts with:', JWT_SECRET.substring(0, 10));
+  
   const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
+  console.log('[verifySessionToken] Decoded payload:', decoded);
+  
   if (decoded.type !== "session") {
     throw new Error("Invalid session token");
   }
