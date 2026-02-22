@@ -17,6 +17,7 @@ function RecommendationsContent() {
 
   const [recommendations, setRecommendations] = useState<ScoredBook[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [provider, setProvider] = useState<string>('vector');
   const [preferences, setPreferences] = useState<{
     likedGenres: string[];
     likedAuthors: string[];
@@ -31,6 +32,7 @@ function RecommendationsContent() {
     try {
       const params = new URLSearchParams();
       params.set('limit', limit.toString());
+      params.set('provider', provider);
 
       const res = await fetch(`/api/recommendations?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch recommendations');
@@ -48,7 +50,7 @@ function RecommendationsContent() {
 
   useEffect(() => {
     fetchRecommendations();
-  }, [limit]);
+  }, [limit, provider]);
 
   const getReasonMessage = () => {
     switch (reason) {
@@ -83,6 +85,20 @@ function RecommendationsContent() {
           </div>
 
           <div className="flex items-center gap-4">
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              <button
+                onClick={() => setProvider('hybrid')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${provider === 'hybrid' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Classic
+              </button>
+              <button
+                onClick={() => setProvider('vector')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${provider === 'vector' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                AI Vector
+              </button>
+            </div>
             <button
               onClick={() => router.push('/books')}
               className="text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
@@ -179,8 +195,8 @@ function RecommendationsContent() {
                       <td className="py-3 px-5">
                         <div className="flex items-center gap-2">
                           <div className="w-16 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full" 
+                            <div
+                              className="bg-gradient-to-r from-emerald-400 to-teal-500 h-2 rounded-full"
                               style={{ width: `${book.score * 100}%` }}
                             />
                           </div>
