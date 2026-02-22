@@ -33,7 +33,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -42,7 +42,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -51,7 +51,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
+        
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -77,7 +77,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -86,7 +86,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -111,7 +111,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -136,7 +136,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -145,7 +145,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -154,7 +154,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
+        
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -163,7 +163,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
+        
         url: 'https://example.com/4',
         title: 'Book 4',
         category: 'Фантастика',
@@ -190,7 +190,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -199,7 +199,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -208,7 +208,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
+        
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -233,7 +233,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -242,7 +242,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -251,7 +251,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
+        
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -260,7 +260,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
+        
         url: 'https://example.com/4',
         title: 'Book 4',
         category: 'Фантастика',
@@ -283,7 +283,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -292,7 +292,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
+        
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -301,7 +301,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
+        
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -310,7 +310,7 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
+        
         url: 'https://example.com/4',
         title: 'Book 4',
         category: 'Фантастика',
@@ -333,7 +333,6 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',
@@ -342,7 +341,6 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Book 2',
         category: 'Фантастика',
@@ -351,7 +349,6 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Book 3',
         category: 'Фантастика',
@@ -360,7 +357,6 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
         url: 'https://example.com/4',
         title: 'Book 4',
         category: 'Фантастика',
@@ -369,7 +365,6 @@ describe('GET /api/books/genres', () => {
       },
       {
         id: '5',
-        crawlId: 'crawl-5',
         url: 'https://example.com/5',
         title: 'Book 5',
         category: 'Фантастика',
@@ -392,7 +387,7 @@ describe('GET /api/books/genres', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
+        
         url: 'https://example.com/1',
         title: 'Book 1',
         category: 'Фантастика',

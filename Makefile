@@ -1,5 +1,10 @@
 HOST=$(shell grep '^HOST=' .env | cut -d '=' -f 2)
 
+crawl:
+	@echo "Crawling..."
+	npm run crawl
+	npm run crawl -- parse
+
 install:
 	@echo "Installing server..."
 	-ssh root@$(HOST) "mkdir -p /opt/bookAdviser"
