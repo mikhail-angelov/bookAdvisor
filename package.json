@@ -10,6 +10,7 @@
     "start": "next start",
     "start:server": "tsx server.ts",
     "test": "jest",
+    "lint": "tsc --noEmit",
     "crawl": "tsx crawler/cli.ts",
     "generate-embeddings": "tsx scripts/generateEmbeddings.ts"
   },

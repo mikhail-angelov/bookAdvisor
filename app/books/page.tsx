@@ -55,11 +55,11 @@ function BooksContent() {
 
     const [books, setBooks] = useState<Book[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [total, setTotal] = useState(0);
     const [genres, setGenres] = useState<string[]>([]);
 
+    // Initialize all state from URL params
     const [search, setSearch] = useState(searchParams.get('q') || '');
     const [genre, setGenre] = useState(searchParams.get('genre') || '');
     const [sortBy, setSortBy] = useState<SortColumn>(
@@ -68,6 +68,7 @@ function BooksContent() {
     const [sortDir, setSortDir] = useState<SortDir>(
         (searchParams.get('sortDir') as SortDir) || 'desc'
     );
+    const [page, setPage] = useState(parseInt(searchParams.get('page') || '1'));
 
     // Load genres once on mount
     useEffect(() => {

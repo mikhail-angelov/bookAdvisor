@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
-import { book } from '@/db/schema';
-import { eq, like, or, and, sql, asc, desc } from 'drizzle-orm';
+import { book, userAnnotation } from '@/db/schema';
+import { eq, like, or, and, sql, asc, desc, notInArray } from 'drizzle-orm';
+import { verifySessionToken } from '@/lib/auth';
 
 const SORTABLE_COLUMNS = ['title', 'genre', 'seeds', 'downloads', 'lastCommentDate'] as const;
 type SortColumn = typeof SORTABLE_COLUMNS[number];
@@ -24,8 +25,32 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
     const sortBy = (searchParams.get('sortBy') || 'lastCommentDate') as SortColumn;
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
+    const excludeAnnotated = searchParams.get('excludeAnnotated') !== 'false'; // Default to true
 
     const db = await getAppDbAsync();
+
+    // Get authenticated user from session
+    let userId: string | null = null;
+    const token = req.cookies.get('auth_token')?.value;
+    if (token) {
+      try {
+        const payload = verifySessionToken(token);
+        userId = payload.userId;
+      } catch {
+        // Invalid token, continue without user
+      }
+    }
+
+    // Get books that user has annotated (to exclude)
+    let annotatedBookIds: string[] = [];
+    if (userId && excludeAnnotated) {
+      const annotations = await db
+        .select({ bookId: userAnnotation.bookId })
+        .from(userAnnotation)
+        .where(eq(userAnnotation.userId, userId))
+        .all();
+      annotatedBookIds = annotations.map((a) => a.bookId);
+    }
 
     const conditions = [];
 
@@ -114,6 +139,11 @@ export async function GET(req: NextRequest) {
 
     const col = SORTABLE_COLUMNS.includes(sortBy) ? columnMap[sortBy] : book.lastCommentDate;
     const orderExpr = sortDir === 'asc' ? asc(col as any) : desc(col as any);
+
+    // Add exclusion condition for annotated books
+    if (annotatedBookIds.length > 0) {
+      conditions.push(notInArray(book.id, annotatedBookIds));
+    }
 
     let query = db.select().from(book);
     if (conditions.length > 0) {

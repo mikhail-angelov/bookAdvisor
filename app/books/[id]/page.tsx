@@ -102,15 +102,15 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
             <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
                     <div className="flex items-center justify-between">
-                        <Link 
-                            href="/books" 
+                        <button 
+                            onClick={() => router.back()}
                             className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                             </svg>
                             Back to Library
-                        </Link>
+                        </button>
                         <div className="flex items-center gap-3">
                             {user ? (
                                 <span className="text-sm text-slate-500">{user.email}</span>

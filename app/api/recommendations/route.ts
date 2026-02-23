@@ -3,6 +3,7 @@ import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
 import { eq, and, sql, desc, inArray } from 'drizzle-orm';
 import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
+import { verifySessionToken } from '@/lib/auth';
 
 /**
  * Recommendation Scoring Algorithm
@@ -237,12 +238,26 @@ export async function GET(req: NextRequest) {
     const searchParams = req.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '20');
     const minRating = parseInt(searchParams.get('minRating') || '0'); // Filter by rating if user wants
-    const userId = searchParams.get('userId');
     const provider = searchParams.get('provider') || 'hybrid'; // 'hybrid' or 'vector'
 
-    // For now, we'll use a default user or require userId
-    // In production, this would come from session
-    const targetUserId = userId || 'default-user';
+    // Get authenticated user from session
+    let targetUserId: string | null = null;
+    const token = req.cookies.get('auth_token')?.value;
+    if (token) {
+      try {
+        const payload = verifySessionToken(token);
+        targetUserId = payload.userId;
+      } catch {
+        // Invalid token, continue without user
+      }
+    }
+
+    if (!targetUserId) {
+      return NextResponse.json({ 
+        error: 'Authentication required',
+        message: 'Please sign in to get personalized recommendations' 
+      }, { status: 401 });
+    }
 
     const db = await getAppDbAsync();
 
