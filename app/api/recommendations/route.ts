@@ -264,15 +264,29 @@ export async function GET(req: NextRequest) {
     // Get user's preferences
     const prefs = await getUserPreferences(db, targetUserId);
 
-    // If no preferences yet, return popular books
+    // Get ALL books the user has annotated (to exclude them from recommendations)
+    const allUserAnnotations = await db
+      .select({ bookId: userAnnotation.bookId })
+      .from(userAnnotation)
+      .where(eq(userAnnotation.userId, targetUserId))
+      .all();
+    const excludeIds = allUserAnnotations.map((r: { bookId: string }) => r.bookId);
+
+    // If no preferences yet, return popular books (excluding annotated ones)
     if (prefs.likedGenres.length === 0 && prefs.likedAuthors.length === 0) {
-      // Return popular books as default recommendations
-      const popularBooks = await db
+      // Return popular books as default recommendations, excluding annotated books
+      let popularBooks = await db
         .select()
         .from(book)
         .orderBy(desc(book.downloads))
-        .limit(limit)
+        .limit(limit * 3) // Fetch more to account for exclusions
         .all();
+
+      // Filter out annotated books
+      popularBooks = popularBooks.filter(b => !excludeIds.includes(b.id));
+
+      // Take only the requested limit
+      popularBooks = popularBooks.slice(0, limit);
 
       // Add score based on normalized downloads for popular books
       const maxDownloads = popularBooks.length > 0 ? (popularBooks[0].downloads || 1) : 1;
@@ -288,27 +302,6 @@ export async function GET(req: NextRequest) {
         reason: 'popular',
       });
     }
-
-    // Get books that user has already rated (to exclude them)
-    const ratedBooks = await db
-      .select({ bookId: userAnnotation.bookId })
-      .from(userAnnotation)
-      .where(eq(userAnnotation.userId, targetUserId))
-      .all();
-    const ratedBookIds = new Set(ratedBooks.map((r: { bookId: string }) => r.bookId));
-    
-    // Also filter out books user marked as "dropped"
-    const droppedBooks = await db
-      .select({ bookId: userAnnotation.bookId })
-      .from(userAnnotation)
-      .where(and(
-        eq(userAnnotation.userId, targetUserId),
-        eq(userAnnotation.readStatus, 'dropped')
-      ))
-      .all();
-    const droppedBookIds = new Set(droppedBooks.map((r: { bookId: string }) => r.bookId));
-
-    const excludeIds = [...Array.from(ratedBookIds), ...Array.from(droppedBookIds)];
 
     if (provider === 'vector') {
       try {
