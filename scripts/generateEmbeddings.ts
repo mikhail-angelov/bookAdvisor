@@ -23,28 +23,29 @@ function sleep(ms: number) {
 function constructBookText(b: typeof book.$inferSelect): string {
   // Combine title + author + genre + performer into a single text representation
   const parts = [];
-  if (b.title) parts.push(`Title: ${b.title}`);
+  // if (b.title) parts.push(`Title: ${b.title}`);
   if (b.authorName) parts.push(`Author: ${b.authorName}`);
   if (b.genre) parts.push(`Genre: ${b.genre}`);
   if (b.performer) parts.push(`Performer: ${b.performer}`);
-  if (b.description) parts.push(`Description: ${b.description.slice(0, 500)}`); // Limit description length
+  // if (b.description) parts.push(`Description: ${b.description.slice(0, 500)}`); // Limit description length
   return parts.join('. ');
 }
 
 async function main() {
   console.log('Starting embeddings generation...');
 
-  if (!process.env.DEEPSEEK_API_KEY) {
-    console.error('DEEPSEEK_API_KEY is not set. Please set it in .env');
-    // Proceeding might still work if they provided OPENAI_API_KEY and changed the base URL back, but we strictly expect deepseek as per prompt.
-    // We will not block it, the deepseek client will throw if it fails.
+  if (!process.env.HUGGINGFACE_API_KEY) {
+    console.error('HUGGINGFACE_API_KEY is not set.');
+    console.error('Get a free API key at https://huggingface.co/settings/tokens');
+    console.error('Note: DeepSeek API does NOT offer embeddings (only chat models).');
   }
 
   const db = await getAppDbAsync();
   console.log('Database initialized.');
 
   // Fetch all books
-  const allBooks = await db.select().from(book).all();
+  // const allBooks = await db.select().from(book).all();
+  const allBooks = await db.select().from(book).limit(10);
   console.log(`Found ${allBooks.length} books in the database.`);
 
   if (allBooks.length === 0) {
@@ -56,6 +57,7 @@ async function main() {
   // To determine vector size, let's generate an embedding for the first book
   console.log('Generating sample embedding to determine vector size...');
   const sampleText = constructBookText(allBooks[0]);
+  console.log('-1-',sampleText)
   const sampleEmbedding = await generateOpenAIEmbedding(sampleText);
   const vectorSize = sampleEmbedding.length;
   console.log(`Determined vector size: ${vectorSize}`);

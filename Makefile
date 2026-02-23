@@ -1,5 +1,8 @@
 HOST=$(shell grep '^HOST=' .env | cut -d '=' -f 2)
 
+q: 
+	docker run -d --name qdrant -p 6333:6333 -p 6334:6334 -v "$(pwd)/data/qdrant_storage:/qdrant/storage" qdrant/qdrant:latest
+
 crawl:
 	@echo "Crawling..."
 	npm run crawl
