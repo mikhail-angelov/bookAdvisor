@@ -233,15 +233,23 @@ function BooksContent() {
                             Recommended
                         </button>
                         {user ? (
-                            <button
-                                onClick={async () => {
-                                    await fetch('/api/auth/logout', { method: 'POST' });
-                                    setUser(null);
-                                }}
-                                className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                            >
-                                Logout
-                            </button>
+                            <>
+                                <button
+                                    onClick={() => router.push('/annotations')}
+                                    className="px-4 py-2 text-sm font-medium text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-lg transition-colors"
+                                >
+                                    My Books
+                                </button>
+                                <button
+                                    onClick={async () => {
+                                        await fetch('/api/auth/logout', { method: 'POST' });
+                                        setUser(null);
+                                    }}
+                                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                >
+                                    Logout
+                                </button>
+                            </>
                         ) : (
                             <Link href="/login" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800">
                                 Sign In
