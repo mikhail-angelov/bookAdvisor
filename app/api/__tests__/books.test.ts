@@ -25,7 +25,6 @@ describe('GET /api/books', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Book 1 - Фантастика only',
         category: 'Фантастика',
@@ -34,7 +33,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Book 2 - Фантастика, фэнтези',
         category: 'Фантастика',
@@ -43,7 +41,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Book 3 - Фэнтези only',
         category: 'Фантастика',
@@ -52,7 +49,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
         url: 'https://example.com/4',
         title: 'Book 4 - Боевик, фэнтези',
         category: 'Фантастика',
@@ -103,7 +99,6 @@ describe('GET /api/books', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Book 1 - lowercase',
         category: 'Фантастика',
@@ -112,7 +107,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Book 2 - uppercase',
         category: 'Фантастика',
@@ -121,7 +115,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Book 3 - mixed case (unrealistic edge case)',
         category: 'Фантастика',
@@ -151,7 +144,6 @@ describe('GET /api/books', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Book 1 - comma',
         category: 'Фантастика',
@@ -160,7 +152,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Book 2 - semicolon',
         category: 'Фантастика',
@@ -169,7 +160,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Book 3 - slash',
         category: 'Фантастика',
@@ -178,7 +168,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
         url: 'https://example.com/4',
         title: 'Book 4 - no match',
         category: 'Фантастика',
@@ -205,7 +194,6 @@ describe('GET /api/books', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Book 1 - genre at start',
         category: 'Фантастика',
@@ -214,7 +202,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Book 2 - genre in middle',
         category: 'Фантастика',
@@ -223,7 +210,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Book 3 - genre at end',
         category: 'Фантастика',
@@ -232,7 +218,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '4',
-        crawlId: 'crawl-4',
         url: 'https://example.com/4',
         title: 'Book 4 - no match',
         category: 'Фантастика',
@@ -263,7 +248,6 @@ describe('GET /api/books', () => {
     await db.insert(bookSchema).values([
       {
         id: '1',
-        crawlId: 'crawl-1',
         url: 'https://example.com/1',
         title: 'Война и мир - Фантастика',
         category: 'Фантастика',
@@ -272,7 +256,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '2',
-        crawlId: 'crawl-2',
         url: 'https://example.com/2',
         title: 'Преступление и наказание - Фантастика',
         category: 'Фантастика',
@@ -281,7 +264,6 @@ describe('GET /api/books', () => {
       },
       {
         id: '3',
-        crawlId: 'crawl-3',
         url: 'https://example.com/3',
         title: 'Война и мир - Драма',
         category: 'Драма',

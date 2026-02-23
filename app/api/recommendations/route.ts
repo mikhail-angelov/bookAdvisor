@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
 
 /**
  * Recommendation Scoring Algorithm
@@ -237,6 +238,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const minRating = parseInt(searchParams.get('minRating') || '0'); // Filter by rating if user wants
     const userId = searchParams.get('userId');
+    const provider = searchParams.get('provider') || 'hybrid'; // 'hybrid' or 'vector'
 
     // For now, we'll use a default user or require userId
     // In production, this would come from session
@@ -278,18 +280,8 @@ export async function GET(req: NextRequest) {
       .from(userAnnotation)
       .where(eq(userAnnotation.userId, targetUserId))
       .all();
-    const ratedBookIds = new Set(ratedBooks.map(r => r.bookId));
-
-    // Fetch all books (excluding rated ones)
-    // For 20k books, we need to do this in chunks or optimize
-    let allBooks = await db
-      .select()
-      .from(book)
-      .all();
-
-    // Filter out rated books
-    allBooks = allBooks.filter(b => !ratedBookIds.has(b.id));
-
+    const ratedBookIds = new Set(ratedBooks.map((r: { bookId: string }) => r.bookId));
+    
     // Also filter out books user marked as "dropped"
     const droppedBooks = await db
       .select({ bookId: userAnnotation.bookId })
@@ -299,8 +291,84 @@ export async function GET(req: NextRequest) {
         eq(userAnnotation.readStatus, 'dropped')
       ))
       .all();
-    const droppedBookIds = new Set(droppedBooks.map(r => r.bookId));
-    allBooks = allBooks.filter(b => !droppedBookIds.has(b.id));
+    const droppedBookIds = new Set(droppedBooks.map((r: { bookId: string }) => r.bookId));
+
+    const excludeIds = [...Array.from(ratedBookIds), ...Array.from(droppedBookIds)];
+
+    if (provider === 'vector') {
+      try {
+        // Find liked books (rating >= 4)
+        const likedBookRecords = await db
+          .select({ bookId: userAnnotation.bookId })
+          .from(userAnnotation)
+          .where(and(
+            eq(userAnnotation.userId, targetUserId),
+            sql`${userAnnotation.rating} >= 4`
+          ))
+          .all();
+
+        const likedIds = likedBookRecords.map((r: { bookId: string }) => r.bookId);
+
+        if (likedIds.length > 0) {
+          // Retrieve their vectors
+          const vectors = await retrieveVectors(likedIds);
+          const validVectors = vectors.filter(v => v && v.length > 0);
+
+          if (validVectors.length > 0) {
+            // Calculate average vector (centroid)
+            const vectorSize = validVectors[0].length;
+            const centroid = new Array(vectorSize).fill(0);
+            for (const vec of validVectors) {
+              for (let i = 0; i < vectorSize; i++) {
+                centroid[i] += vec[i];
+              }
+            }
+            for (let i = 0; i < vectorSize; i++) {
+              centroid[i] /= validVectors.length;
+            }
+
+            // Query Qdrant
+            const searchResults = await searchSimilar(centroid, limit, excludeIds);
+
+            // Fetch the actual book details from SQLite
+            const recommendedBookIds = searchResults.map(res => String(res.id));
+            if (recommendedBookIds.length > 0) {
+              const recommendedBooks = await db
+                .select()
+                .from(book)
+                .where(inArray(book.id, recommendedBookIds))
+                .all();
+
+              // Sort them to match Qdrant rank
+              const sortedBooks = recommendedBooks.sort((a, b) => 
+                recommendedBookIds.indexOf(a.id) - recommendedBookIds.indexOf(b.id)
+              );
+
+              return NextResponse.json({
+                recommendations: sortedBooks.map(b => ({
+                  ...b,
+                  score: searchResults.find(r => String(r.id) === b.id)?.score || 0,
+                  reasons: ['Similar to books you liked']
+                })),
+                preferences: { totalLiked: likedIds.length },
+                reason: 'vector-similarity',
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Vector search failed, falling back to hybrid:', err);
+      }
+    }
+
+    // Fetch all books (excluding rated ones)
+    // For 20k books, we need to do this in chunks or optimize
+    let allBooks = await db
+      .select()
+      .from(book)
+      .all();
+
+    allBooks = allBooks.filter(b => !excludeIds.includes(b.id));
 
     // Score each book
     const scoredBooks = allBooks.map(b => {

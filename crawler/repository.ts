@@ -4,7 +4,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import chunk from 'lodash/chunk';
-import { eq, and, inArray, sql, count } from 'drizzle-orm';
+import { eq, and, inArray, sql, count,desc } from 'drizzle-orm';
 import { getCrawlDbAsync, getAppDbAsync } from '../db/index';
 import { crawl, crawlHistory, book } from '../db/index';
 import type { Crawl, NewCrawl, NewCrawlHistory } from '../db/schema-crawl';
@@ -226,15 +226,15 @@ export async function getCompletedCrawls(
   if (options.type) conditions.push(eq(crawl.type, options.type));
 
   if (options.excludeProcessed) {
-    const processedIds = prodDb
-      .select({ id: book.crawlId })
+const lastProcessedDate = await prodDb
+      .select({ createdAt: book.createdAt })
       .from(book)
-      .where(sql`${book.crawlId} IS NOT NULL`);
-
+      .orderBy(desc(book.createdAt))
+      .limit(1);
     let query = crawlDb
       .select()
       .from(crawl)
-      .where(and(...conditions, sql`${crawl.id} NOT IN (${processedIds})`));
+      .where(and(...conditions, sql`${crawl.createdAt} > ${lastProcessedDate[0].createdAt}`));
     
     return (options.limit && (options.offset || options.offset ===0)) ? query.limit(options.limit).offset(options.offset) : query;
   }
@@ -255,16 +255,15 @@ export async function getCompletedCrawlsCount(
   if (options.type) conditions.push(eq(crawl.type, options.type));
 
   if (options.excludeProcessed) {
-    const processedIds = prodDb
-      .select({ id: book.crawlId })
+    const lastProcessedDate = await prodDb
+      .select({ createdAt: book.createdAt })
       .from(book)
-      .where(sql`${book.crawlId} IS NOT NULL`);
-
+      .orderBy(desc(book.createdAt))
+      .limit(1);
     const result = await crawlDb
       .select({ count: count() })
       .from(crawl)
-      .where(and(...conditions, sql`${crawl.id} NOT IN (${processedIds})`));
-    
+      .where(and(...conditions, sql`${crawl.createdAt} > ${lastProcessedDate[0].createdAt}`));
     return result[0].count;
   }
 
@@ -325,5 +324,11 @@ export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
       await prodDb.update(book).set(data).where(eq(book.url, url));
       totalUpdated++;
     }
+  }
+  const toCreate = books.filter(b => b.url && !existingUrls.has(b.url));
+  if(toCreate.length > 0) {
+    const toCreateWithCrawlId = toCreate.map(b => ({ ...b, id: crypto.randomUUID() }));
+    await prodDb.insert(book).values(toCreateWithCrawlId as NewBook[]);
+    totalUpdated += toCreate.length;
   }
 }

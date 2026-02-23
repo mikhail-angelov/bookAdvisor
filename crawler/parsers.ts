@@ -172,6 +172,7 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
         : authorName,
       authorPosts,
       topicTitle,
+      title: topicTitle,
       year: structuredData.year,
       authors: structuredData.authors,
       performer: structuredData.performer,

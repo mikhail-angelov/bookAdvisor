@@ -12,7 +12,6 @@ export const user = sqliteTable("users", {
 
 export const book = sqliteTable("books", {
   id: text("id").primaryKey(),
-  crawlId: text("crawl_id").unique().notNull(),
   url: text("url").notNull(),
   title: text("title").notNull(),
   category: text("category").notNull().default("Российская фантастика"),
