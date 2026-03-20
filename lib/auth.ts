@@ -16,8 +16,6 @@ function getJwtSecret(): string {
   );
 }
 
-const JWT_SECRET = getJwtSecret();
-
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export interface MagicLinkPayload {
@@ -39,20 +37,22 @@ export interface SessionPayload {
  * Create a signed JWT for magic link authentication
  */
 export function createMagicLinkToken(email: string): string {
+  const jwtSecret = getJwtSecret();
   const payload: MagicLinkPayload = {
     email,
     type: "magic-link",
   };
 
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "15m" });
+  return jwt.sign(payload, jwtSecret, { expiresIn: "15m" });
 }
 
 /**
  * Verify and decode a JWT magic link token
  */
 export function verifyMagicLinkToken(token: string): MagicLinkPayload {
+  const jwtSecret = getJwtSecret();
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as MagicLinkPayload;
+    const decoded = jwt.verify(token, jwtSecret) as MagicLinkPayload;
     if (decoded.type !== "magic-link") {
       throw new Error("Invalid token type");
     }
@@ -72,7 +72,7 @@ export function verifyMagicLinkToken(token: string): MagicLinkPayload {
  * Create a session JWT for authenticated users
  */
 export function createSessionToken(userId: string, email: string): string {
-  return jwt.sign({ userId, email, type: "session" }, JWT_SECRET, {
+  return jwt.sign({ userId, email, type: "session" }, getJwtSecret(), {
     expiresIn: "7d",
   });
 }
@@ -81,7 +81,7 @@ export function createSessionToken(userId: string, email: string): string {
  * Verify session JWT
  */
 export function verifySessionToken(token: string): SessionPayload {
-  const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
+  const decoded = jwt.verify(token, getJwtSecret()) as SessionPayload;
 
   if (decoded.type !== "session") {
     throw new Error("Invalid session token");

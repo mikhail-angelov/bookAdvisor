@@ -27,7 +27,9 @@ describe('auth secret configuration', () => {
     delete env.AUTH_SECRET;
     env.NODE_ENV = 'production';
 
-    await expect(import('../auth')).rejects.toThrow(
+    const auth = await import('../auth');
+
+    expect(() => auth.createSessionToken('user-1', 'user@example.com')).toThrow(
       'AUTH_SECRET must be configured before using authentication features.',
     );
   });
