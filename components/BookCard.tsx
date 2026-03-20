@@ -1,9 +1,11 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { Book } from '@/db/schema';
 
 interface BookCardProps {
     book: Book;
+    href?: string;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -13,11 +15,13 @@ function formatDate(dateStr: string | null): string {
     return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
-export default function BookCard({ book }: BookCardProps) {
+export default function BookCard({ book, href }: BookCardProps) {
+    const router = useRouter();
+
     return (
         <tr
             className="group hover:bg-blue-50/50 transition-colors cursor-pointer"
-            onClick={() => { window.location.href = `/books/${book.id}`; }}
+            onClick={() => { router.push(href || `/books/${book.id}`); }}
         >
             {/* Title */}
             <td className="px-5 py-3 font-medium text-gray-900 group-hover:text-blue-600 transition-colors">

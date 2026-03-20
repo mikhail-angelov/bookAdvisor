@@ -7,6 +7,7 @@ import BookCard from '@/components/BookCard';
 import { toast } from 'sonner';
 import { useAppStore } from '@/app/store';
 import Link from 'next/link';
+import { bookNavigationCache } from '@/lib/book-navigation-cache';
 
 type SortColumn = 'title' | 'genre' | 'seeds' | 'downloads' | 'lastCommentDate';
 type SortDir = 'asc' | 'desc';
@@ -58,6 +59,7 @@ function BooksContent() {
     const [totalPages, setTotalPages] = useState(1);
     const [total, setTotal] = useState(0);
     const [genres, setGenres] = useState<string[]>([]);
+    const [navigationKey, setNavigationKey] = useState<string | null>(null);
 
     // Initialize all state from URL params
     const [search, setSearch] = useState(searchParams.get('q') || '');
@@ -102,6 +104,7 @@ function BooksContent() {
             setBooks(data.books);
             setTotalPages(data.pagination.totalPages);
             setTotal(data.pagination.total);
+            setNavigationKey(bookNavigationCache.save('books', data.books.map((item: Book) => item.id)));
         } catch {
             toast.error('Error loading books');
         } finally {
@@ -296,7 +299,11 @@ function BooksContent() {
                                 </thead>
                                 <tbody className="divide-y divide-gray-50">
                                     {books.map((book) => (
-                                        <BookCard key={book.id} book={book} />
+                                        <BookCard
+                                            key={book.id}
+                                            book={book}
+                                            href={navigationKey ? `/books/${book.id}?nav=${encodeURIComponent(navigationKey)}` : `/books/${book.id}`}
+                                        />
                                     ))}
                                 </tbody>
                             </table>

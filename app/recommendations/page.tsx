@@ -3,8 +3,9 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Book } from '@/db/schema';
-import BookCard from '@/components/BookCard';
 import { toast } from 'sonner';
+import Link from 'next/link';
+import { bookNavigationCache } from '@/lib/book-navigation-cache';
 
 interface ScoredBook extends Book {
   score: number;
@@ -24,6 +25,7 @@ function RecommendationsContent() {
     likedPerformers: string[];
   } | null>(null);
   const [reason, setReason] = useState<string>('loading');
+  const [navigationKey, setNavigationKey] = useState<string | null>(null);
 
   const limit = parseInt(searchParams.get('limit') || '20');
 
@@ -48,6 +50,7 @@ function RecommendationsContent() {
       setRecommendations(data.recommendations || []);
       setPreferences(data.preferences || null);
       setReason(data.reason || 'unknown');
+      setNavigationKey(bookNavigationCache.save('recommendations', (data.recommendations || []).map((item: ScoredBook) => item.id)));
     } catch (error) {
       toast.error('Error loading recommendations');
     } finally {
@@ -221,10 +224,13 @@ function RecommendationsContent() {
                         </div>
                       </td>
                       <td className="py-3 px-4">
-                        <a href={`/books/${book.id}`} className="hover:text-blue-600 transition-colors">
+                        <Link
+                          href={navigationKey ? `/books/${book.id}?nav=${encodeURIComponent(navigationKey)}` : `/books/${book.id}`}
+                          className="hover:text-blue-600 transition-colors"
+                        >
                           <div className="font-medium text-gray-900">{book.title}</div>
                           <div className="text-xs text-gray-500">{book.authorName || 'Unknown'}</div>
-                        </a>
+                        </Link>
                       </td>
                       <td className="py-3 px-4 hidden md:table-cell">
                         <span className="text-xs text-gray-500">{book.genre || '-'}</span>

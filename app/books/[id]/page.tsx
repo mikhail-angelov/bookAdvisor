@@ -1,15 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Book, UserAnnotation } from '@/db/schema';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useAppStore } from '@/app/store';
 import { DEFAULT_READ_STATUS, type ReadStatus } from '@/lib/read-status';
+import { bookNavigationCache, type BookNavigationNeighbors } from '@/lib/book-navigation-cache';
 
 export default function BookDetailsPage({ params }: { params: { id: string } }) {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [book, setBook] = useState<Book | null>(null);
     const [annotation, setAnnotation] = useState<Partial<UserAnnotation>>({
         annotation: '',
@@ -19,7 +21,9 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
+    const [neighbors, setNeighbors] = useState<BookNavigationNeighbors | null>(null);
     const { user, setUser } = useAppStore();
+    const navigationKey = searchParams.get('nav');
 
     useEffect(() => {
         const fetchData = async () => {
@@ -56,6 +60,10 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
         fetchData();
     }, [params.id, router, setUser]);
+
+    useEffect(() => {
+        setNeighbors(bookNavigationCache.getNeighbors(navigationKey, params.id));
+    }, [navigationKey, params.id]);
 
     const handleSaveAnnotation = async () => {
         setIsSaving(true);
@@ -96,6 +104,12 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
     if (!book) return null;
 
     const statusConfig = readStatusConfig[annotation.readStatus as ReadStatus] || readStatusConfig.want_to_read;
+    const backLabel = neighbors?.source === 'recommendations' ? 'Back to Recommendations' : 'Back to Library';
+    const navigateToSibling = (bookId: string | null) => {
+        if (!bookId) return;
+        const href = navigationKey ? `/books/${bookId}?nav=${encodeURIComponent(navigationKey)}` : `/books/${bookId}`;
+        router.push(href);
+    };
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -103,15 +117,39 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
             <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
                     <div className="flex items-center justify-between">
-                        <button 
-                            onClick={() => router.back()}
-                            className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
-                        >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                            </svg>
-                            Back to Library
-                        </button>
+                        <div className="flex items-center gap-3">
+                            <button 
+                                onClick={() => router.back()}
+                                className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                                </svg>
+                                {backLabel}
+                            </button>
+                            {neighbors && (
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToSibling(neighbors.prevId)}
+                                        disabled={!neighbors.prevId}
+                                        aria-label="Previous book"
+                                        className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        &lt;
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => navigateToSibling(neighbors.nextId)}
+                                        disabled={!neighbors.nextId}
+                                        aria-label="Next book"
+                                        className="h-8 w-8 rounded-md border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        &gt;
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <div className="flex items-center gap-3">
                             {user ? (
                                 <span className="text-sm text-slate-500">{user.email}</span>
