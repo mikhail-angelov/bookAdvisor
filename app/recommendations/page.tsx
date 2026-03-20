@@ -50,7 +50,13 @@ function RecommendationsContent() {
       setRecommendations(data.recommendations || []);
       setPreferences(data.preferences || null);
       setReason(data.reason || 'unknown');
-      setNavigationKey(bookNavigationCache.save('recommendations', (data.recommendations || []).map((item: ScoredBook) => item.id)));
+      setNavigationKey(
+        bookNavigationCache.save(
+          'recommendations',
+          (data.recommendations || []).map((item: ScoredBook) => item.id),
+          `/recommendations?${params.toString()}`
+        )
+      );
     } catch (error) {
       toast.error('Error loading recommendations');
     } finally {

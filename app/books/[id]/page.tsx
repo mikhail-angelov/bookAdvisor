@@ -105,6 +105,14 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
     const statusConfig = readStatusConfig[annotation.readStatus as ReadStatus] || readStatusConfig.want_to_read;
     const backLabel = neighbors?.source === 'recommendations' ? 'Back to Recommendations' : 'Back to Library';
+    const handleBack = () => {
+        if (neighbors?.returnHref) {
+            router.push(neighbors.returnHref);
+            return;
+        }
+
+        router.push('/books');
+    };
     const navigateToSibling = (bookId: string | null) => {
         if (!bookId) return;
         const href = navigationKey ? `/books/${bookId}?nav=${encodeURIComponent(navigationKey)}` : `/books/${bookId}`;
@@ -119,7 +127,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <button 
-                                onClick={() => router.back()}
+                                onClick={handleBack}
                                 className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

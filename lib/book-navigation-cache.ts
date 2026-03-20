@@ -4,6 +4,7 @@ export interface BookNavigationSnapshot {
   key: string;
   source: BookNavigationSource;
   ids: string[];
+  returnHref: string;
   createdAt: number;
 }
 
@@ -11,6 +12,7 @@ export interface BookNavigationNeighbors {
   prevId: string | null;
   nextId: string | null;
   source: BookNavigationSource;
+  returnHref: string;
 }
 
 const MAX_SNAPSHOTS = 30;
@@ -20,7 +22,7 @@ class BookNavigationCacheService {
   private snapshots = new Map<string, BookNavigationSnapshot>();
   private sequence = 0;
 
-  save(source: BookNavigationSource, ids: string[]): string | null {
+  save(source: BookNavigationSource, ids: string[], returnHref: string): string | null {
     const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
     if (uniqueIds.length === 0) {
       return null;
@@ -33,6 +35,7 @@ class BookNavigationCacheService {
       key,
       source,
       ids: uniqueIds,
+      returnHref,
       createdAt: Date.now(),
     });
 
@@ -79,6 +82,7 @@ class BookNavigationCacheService {
       prevId: snapshot.ids[index - 1] ?? null,
       nextId: snapshot.ids[index + 1] ?? null,
       source: snapshot.source,
+      returnHref: snapshot.returnHref,
     };
   }
 

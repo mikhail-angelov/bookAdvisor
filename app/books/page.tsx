@@ -104,7 +104,13 @@ function BooksContent() {
             setBooks(data.books);
             setTotalPages(data.pagination.totalPages);
             setTotal(data.pagination.total);
-            setNavigationKey(bookNavigationCache.save('books', data.books.map((item: Book) => item.id)));
+            setNavigationKey(
+                bookNavigationCache.save(
+                    'books',
+                    data.books.map((item: Book) => item.id),
+                    `/books${params.toString() ? `?${params.toString()}` : ''}`
+                )
+            );
         } catch {
             toast.error('Error loading books');
         } finally {
