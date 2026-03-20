@@ -26,7 +26,6 @@ export async function GET(req: NextRequest) {
 
     // Create session token
     const sessionToken = createSessionToken(existingUser.id, existingUser.email);
-    console.log('[verify] Created session token for user:', existingUser.id);
     
     // Determine the base URL for redirect (handles proxy/load balancer scenarios)
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -34,7 +33,6 @@ export async function GET(req: NextRequest) {
     // If behind proxy, use the request's protocol and host from headers
     const forwardedProto = req.headers.get('x-forwarded-proto');
     const forwardedHost = req.headers.get('x-forwarded-host');
-    console.log('[verify] Forwarded headers - proto:', forwardedProto, 'host:', forwardedHost);
     
     if (forwardedProto && forwardedHost) {
       baseUrl = `${forwardedProto}://${forwardedHost}`;
@@ -42,9 +40,7 @@ export async function GET(req: NextRequest) {
       // Fallback to localhost if no env var set
       baseUrl = "http://localhost:3000";
     }
-    
-    console.log('[verify] Using baseUrl:', baseUrl);
-    
+
     // Set cookie and redirect
     const response = NextResponse.redirect(new URL('/?logged_in=true', baseUrl));
     

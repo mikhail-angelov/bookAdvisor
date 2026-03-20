@@ -229,6 +229,32 @@ describe('Repository', () => {
     });
   });
 
+  describe('getCompletedCrawls', () => {
+    it('returns completed crawls on a fresh database when excludeProcessed is enabled', async () => {
+      const crawlDb = await getCrawlDbAsync();
+      await crawlDb.insert(crawl).values({
+        id: 'completed-crawl-1',
+        url: 'https://rutracker.org/forum/viewtopic.php?t=1',
+        status: CrawlStatus.COMPLETED,
+        type: CrawlType.TORRENT_DETAILS,
+        htmlBody: '<html></html>',
+        createdAt: new Date().toISOString(),
+      });
+
+      const records = await repository.getCompletedCrawls({
+        type: CrawlType.TORRENT_DETAILS,
+        excludeProcessed: true,
+      });
+      const total = await repository.getCompletedCrawlsCount({
+        type: CrawlType.TORRENT_DETAILS,
+        excludeProcessed: true,
+      });
+
+      expect(records).toHaveLength(1);
+      expect(total).toBe(1);
+    });
+  });
+
   describe('batchUpsertBooks', () => {
     it('should batch insert new books and skip existing URLs', async () => {
       const books = Array.from({ length: 5 }, (_, i) => ({

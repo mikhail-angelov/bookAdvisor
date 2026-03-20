@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
-import { eq, and, sql, desc, inArray } from 'drizzle-orm';
+import { eq, and, sql, desc, inArray, like, notInArray, or } from 'drizzle-orm';
 import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
 import { verifySessionToken } from '@/lib/auth';
 
@@ -84,6 +84,7 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
   const books = await db
     .select()
     .from(book)
+    .where(inArray(book.id, bookIds))
     .all() as Book[];
 
   // Create a map for quick lookup using books that match our rated book IDs
@@ -233,11 +234,82 @@ function calculateScore(
   return { score: totalScore, reasons };
 }
 
+function caseVariants(value: string): string[] {
+  const lower = value.toLowerCase();
+  const upper = value.toUpperCase();
+  const capitalized = value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+
+  return Array.from(new Set([value, lower, upper, capitalized])).filter(Boolean);
+}
+
+async function getHybridCandidates(
+  db: ReturnType<typeof getAppDbAsync> extends Promise<infer T> ? T : never,
+  prefs: UserPreferences,
+  excludeIds: string[],
+  limit: number,
+): Promise<Book[]> {
+  const targetLimit = Math.max(limit * 10, 100);
+  const seen = new Map<string, Book>();
+  const baseFilters = excludeIds.length > 0 ? [notInArray(book.id, excludeIds)] : [];
+  const preferenceFilters = [
+    ...prefs.likedAuthors.slice(0, 5).flatMap((author) =>
+      caseVariants(author).map((variant) => like(book.authorName, `%${variant}%`)),
+    ),
+    ...prefs.likedPerformers.slice(0, 5).flatMap((performer) =>
+      caseVariants(performer).map((variant) => like(book.performer, `%${variant}%`)),
+    ),
+    ...prefs.likedGenres.slice(0, 8).flatMap((genre) =>
+      caseVariants(genre).map((variant) => like(book.genre, `%${variant}%`)),
+    ),
+  ];
+
+  if (preferenceFilters.length > 0) {
+    let matchedQuery = db
+      .select()
+      .from(book);
+
+    const matchedCondition = and(...baseFilters, or(...preferenceFilters));
+    if (matchedCondition) {
+      matchedQuery = matchedQuery.where(matchedCondition) as typeof matchedQuery;
+    }
+
+    const matchedBooks = await matchedQuery
+      .orderBy(desc(book.downloads))
+      .limit(targetLimit)
+      .all();
+
+    for (const candidate of matchedBooks) {
+      seen.set(candidate.id, candidate);
+    }
+  }
+
+  let popularQuery = db
+    .select()
+    .from(book);
+
+  const popularCondition = and(...baseFilters);
+  if (popularCondition) {
+    popularQuery = popularQuery.where(popularCondition) as typeof popularQuery;
+  }
+
+  const popularFallback = await popularQuery
+    .orderBy(desc(book.downloads))
+    .limit(targetLimit)
+    .all();
+
+  for (const candidate of popularFallback) {
+    if (!seen.has(candidate.id)) {
+      seen.set(candidate.id, candidate);
+    }
+  }
+
+  return Array.from(seen.values());
+}
+
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '20');
-    const minRating = parseInt(searchParams.get('minRating') || '0'); // Filter by rating if user wants
     const provider = searchParams.get('provider') || 'hybrid'; // 'hybrid' or 'vector'
 
     // Get authenticated user from session
@@ -369,14 +441,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Fetch all books (excluding rated ones)
-    // For 20k books, we need to do this in chunks or optimize
-    let allBooks = await db
-      .select()
-      .from(book)
-      .all();
-
-    allBooks = allBooks.filter(b => !excludeIds.includes(b.id));
+    const allBooks = await getHybridCandidates(db, prefs, excludeIds, limit);
 
     // Score each book
     const scoredBooks = allBooks.map(b => {

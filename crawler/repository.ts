@@ -226,11 +226,19 @@ export async function getCompletedCrawls(
   if (options.type) conditions.push(eq(crawl.type, options.type));
 
   if (options.excludeProcessed) {
-const lastProcessedDate = await prodDb
+    const lastProcessedDate = await prodDb
       .select({ createdAt: book.createdAt })
       .from(book)
       .orderBy(desc(book.createdAt))
       .limit(1);
+
+    if (lastProcessedDate.length === 0 || !lastProcessedDate[0].createdAt) {
+      let query = crawlDb.select().from(crawl).where(and(...conditions));
+      return (options.limit && (options.offset || options.offset === 0))
+        ? query.limit(options.limit).offset(options.offset)
+        : query;
+    }
+
     let query = crawlDb
       .select()
       .from(crawl)
@@ -260,6 +268,15 @@ export async function getCompletedCrawlsCount(
       .from(book)
       .orderBy(desc(book.createdAt))
       .limit(1);
+
+    if (lastProcessedDate.length === 0 || !lastProcessedDate[0].createdAt) {
+      const result = await crawlDb
+        .select({ count: count() })
+        .from(crawl)
+        .where(and(...conditions));
+      return result[0].count;
+    }
+
     const result = await crawlDb
       .select({ count: count() })
       .from(crawl)

@@ -6,6 +6,7 @@ import { Book, UserAnnotation } from '@/db/schema';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useAppStore } from '@/app/store';
+import { DEFAULT_READ_STATUS, type ReadStatus } from '@/lib/read-status';
 
 export default function BookDetailsPage({ params }: { params: { id: string } }) {
     const router = useRouter();
@@ -14,7 +15,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
         annotation: '',
         rating: 0,
         performanceRating: 0,
-        readStatus: 'unread'
+        readStatus: DEFAULT_READ_STATUS
     });
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -74,10 +75,10 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
         }
     };
 
-    const readStatusConfig = {
-        unread: { label: 'Want to Read', color: 'bg-slate-600', icon: '○' },
+    const readStatusConfig: Record<ReadStatus, { label: string; color: string; icon: string }> = {
+        want_to_read: { label: 'Want to Read', color: 'bg-slate-600', icon: '○' },
         reading: { label: 'Reading', color: 'bg-amber-500', icon: '◐' },
-        completed: { label: 'Completed', color: 'bg-emerald-500', icon: '●' },
+        read: { label: 'Read', color: 'bg-emerald-500', icon: '●' },
         dropped: { label: 'Dropped', color: 'bg-rose-500', icon: '✕' },
     };
 
@@ -94,7 +95,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
     if (!book) return null;
 
-    const statusConfig = readStatusConfig[annotation.readStatus as keyof typeof readStatusConfig] || readStatusConfig.unread;
+    const statusConfig = readStatusConfig[annotation.readStatus as ReadStatus] || readStatusConfig.want_to_read;
 
     return (
         <div className="min-h-screen bg-slate-50">

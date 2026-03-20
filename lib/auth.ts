@@ -1,9 +1,22 @@
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 
-const JWT_SECRET = process.env.AUTH_SECRET || "dev-secret-change-in-production";
-console.log('[auth] AUTH_SECRET loaded, starts with:', JWT_SECRET.substring(0, 10));
-console.log('[auth] AUTH_SECRET env var exists:', !!process.env.AUTH_SECRET);
+function getJwtSecret(): string {
+  const secret = process.env.AUTH_SECRET?.trim();
+  if (secret) {
+    return secret;
+  }
+
+  if (process.env.NODE_ENV === "test") {
+    return "test-auth-secret";
+  }
+
+  throw new Error(
+    "AUTH_SECRET must be configured before using authentication features.",
+  );
+}
+
+const JWT_SECRET = getJwtSecret();
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
@@ -68,12 +81,8 @@ export function createSessionToken(userId: string, email: string): string {
  * Verify session JWT
  */
 export function verifySessionToken(token: string): SessionPayload {
-  console.log('[verifySessionToken] Token received, length:', token.length);
-  console.log('[verifySessionToken] JWT_SECRET starts with:', JWT_SECRET.substring(0, 10));
-  
   const decoded = jwt.verify(token, JWT_SECRET) as SessionPayload;
-  console.log('[verifySessionToken] Decoded payload:', decoded);
-  
+
   if (decoded.type !== "session") {
     throw new Error("Invalid session token");
   }
@@ -93,6 +102,9 @@ export async function sendMagicLinkEmail(
 
   // For development, log to console if no SMTP configured
   if (!process.env.POST_SERVICE_URL) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("POST_SERVICE_URL must be configured in production.");
+    }
     console.log("--- MAGIC LINK EMAIL ---");
     console.log(`To: ${email}`);
     console.log(`Link: ${magicLink}`);

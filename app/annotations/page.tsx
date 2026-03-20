@@ -79,6 +79,8 @@ function AnnotationsContent() {
         return { label: 'Reading', color: 'bg-blue-100 text-blue-700' };
       case 'want_to_read':
         return { label: 'Want to Read', color: 'bg-amber-100 text-amber-700' };
+      case 'dropped':
+        return { label: 'Dropped', color: 'bg-rose-100 text-rose-700' };
       default:
         return { label: 'Unread', color: 'bg-gray-100 text-gray-500' };
     }

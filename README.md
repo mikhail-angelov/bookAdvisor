@@ -39,7 +39,7 @@ npm install
 cp .env.example .env
 
 # Run database migrations
-npm run db:migrate
+npm run migrate:run
 ```
 
 ### Development
@@ -97,8 +97,8 @@ bookAdvisor/
 # Crawl a forum
 npm run crawl -- --forum 2387
 
-# Parse a topic
-npm run parse -- --topic 1234567
+# Generate embeddings for recommendations
+npm run generate-embeddings
 ```
 
 ## License
