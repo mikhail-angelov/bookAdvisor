@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { user } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { verifyMagicLinkToken, createSessionToken } from '@/lib/auth';
+import {
+  verifyMagicLinkToken,
+  createSessionToken,
+  getSessionCookieOptions,
+  getUserIdCookieOptions,
+} from '@/lib/auth';
 
 // Force dynamic rendering to prevent any caching
 export const dynamic = 'force-dynamic';
@@ -44,22 +49,12 @@ export async function GET(req: NextRequest) {
     // Set cookie and redirect
     const response = NextResponse.redirect(new URL('/?logged_in=true', baseUrl));
     
-    // Configure cookie for production (behind proxy)
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     response.cookies.set('auth_token', sessionToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
+      ...getSessionCookieOptions(),
     });
     
     response.cookies.set('user_id', existingUser.id, {
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7,
+      ...getUserIdCookieOptions(),
     });
 
     return response;

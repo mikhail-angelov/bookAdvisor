@@ -1,6 +1,9 @@
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 130;
+export const SESSION_REFRESH_THRESHOLD_SECONDS = 60 * 60 * 24 * 7;
+
 function getJwtSecret(): string {
   const secret = process.env.AUTH_SECRET?.trim();
   if (secret) {
@@ -73,7 +76,7 @@ export function verifyMagicLinkToken(token: string): MagicLinkPayload {
  */
 export function createSessionToken(userId: string, email: string): string {
   return jwt.sign({ userId, email, type: "session" }, getJwtSecret(), {
-    expiresIn: "7d",
+    expiresIn: SESSION_MAX_AGE_SECONDS,
   });
 }
 
@@ -87,6 +90,38 @@ export function verifySessionToken(token: string): SessionPayload {
     throw new Error("Invalid session token");
   }
   return decoded;
+}
+
+export function shouldRefreshSession(payload: SessionPayload): boolean {
+  if (!payload.exp) {
+    return true;
+  }
+
+  const nowInSeconds = Math.floor(Date.now() / 1000);
+  return payload.exp - nowInSeconds <= SESSION_REFRESH_THRESHOLD_SECONDS;
+}
+
+export function getSessionCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  };
+}
+
+export function getUserIdCookieOptions() {
+  const isProduction = process.env.NODE_ENV === "production";
+
+  return {
+    secure: isProduction,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: SESSION_MAX_AGE_SECONDS,
+  };
 }
 
 /**
