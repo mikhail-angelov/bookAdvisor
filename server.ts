@@ -3,6 +3,7 @@ import { parse } from "url";
 import next from "next";
 import { Server as SocketIOServer } from "socket.io";
 import { initDatabase } from "./db/index";
+import { startDailyCrawlScheduler } from "./crawler/scheduler";
 
 const dev = process.env.NODE_ENV !== "production";
 const hostname = "localhost";
@@ -17,6 +18,7 @@ app.prepare().then(async () => {
     console.log("🔄 Initializing database...");
     await initDatabase("prod");
     console.log("✅ Database initialized successfully");
+    startDailyCrawlScheduler();
   } catch (error) {
     console.error("❌ Failed to initialize database:", error);
     console.error("⚠️  Run `npm run migrate:run` to create database tables");

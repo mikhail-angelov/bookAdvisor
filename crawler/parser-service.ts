@@ -2,12 +2,10 @@
  * Service to process crawled HTML and populate the books table
  */
 
-import { v4 as uuidv4 } from "uuid";
 import * as iconv from "iconv-lite";
 import { RutrackerParser, RutrackerDetailsParser } from "./parsers";
 import {
   getCompletedCrawls,
-  batchUpsertBooks,
   updateBooks,
   getCompletedCrawlsCount,
 } from "./repository";
@@ -48,6 +46,7 @@ const BATCH_SIZE = 300;
 export async function processForumCrawls(
   forceReload: boolean = false,
   batchSize: number = BATCH_SIZE,
+  createdAfter?: string,
 ): Promise<number> {
   console.log(
     `Starting forum page processing (forceReload: ${forceReload}, batchSize: ${batchSize})...`,
@@ -56,18 +55,21 @@ export async function processForumCrawls(
   const forumParser = new RutrackerParser();
 
   let totalProcessed = 0;
+  let crawlOffset = 0;
   let hasMore = true;
   const total = await getCompletedCrawlsCount({
     type: CrawlType.FORUM_PAGE,
+    createdAfter,
     excludeProcessed: !forceReload,
   });
 
   while (hasMore) {
     const forumCrawls = await getCompletedCrawls({
       type: CrawlType.FORUM_PAGE,
+      createdAfter,
       excludeProcessed: !forceReload,
       limit: batchSize,
-      offset: totalProcessed,
+      offset: crawlOffset,
     });
 
     console.log(`Processing batch: ${forumCrawls.length} forum pages.`);
@@ -108,6 +110,8 @@ export async function processForumCrawls(
     if (forumCrawls.length < batchSize) {
       hasMore = false;
     }
+
+    crawlOffset += forumCrawls.length;
   }
 
   console.log(
@@ -123,6 +127,7 @@ export async function processForumCrawls(
 export async function processDetailCrawls(
   forceReload: boolean = false,
   batchSize: number = BATCH_SIZE,
+  createdAfter?: string,
 ): Promise<number> {
   console.log(
     `Starting detail page processing (forceReload: ${forceReload}, batchSize: ${batchSize})...`,
@@ -131,9 +136,11 @@ export async function processDetailCrawls(
   const detailParser = new RutrackerDetailsParser();
 
   let totalProcessed = 0;
+  let crawlOffset = 0;
   let hasMore = true;
   const total = await getCompletedCrawlsCount({
     type: CrawlType.TORRENT_DETAILS,
+    createdAfter,
     excludeProcessed: !forceReload,
   });
 
@@ -141,9 +148,10 @@ export async function processDetailCrawls(
   while (hasMore) {
     const detailCrawls = await getCompletedCrawls({
       type: CrawlType.TORRENT_DETAILS,
+      createdAfter,
       excludeProcessed: !forceReload,
       limit: batchSize,
-      offset: totalProcessed,
+      offset: crawlOffset,
     });
 
     if (detailCrawls.length === 0) {
@@ -182,6 +190,8 @@ export async function processDetailCrawls(
     if (detailCrawls.length < batchSize) {
       hasMore = false;
     }
+
+    crawlOffset += detailCrawls.length;
   }
 
   console.log(
@@ -197,13 +207,14 @@ export async function processDetailCrawls(
 export async function processCrawls(
   forceReload: boolean = false,
   batchSize: number = BATCH_SIZE,
+  createdAfter?: string,
 ): Promise<void> {
   console.log(
     `Starting crawl processing (forceReload: ${forceReload}, batchSize: ${batchSize})...`,
   );
 
-  const forumCount = 0; //await processForumCrawls(forceReload, batchSize);
-  const detailCount = await processDetailCrawls(forceReload, batchSize);
+  const forumCount = await processForumCrawls(forceReload, batchSize, createdAfter);
+  const detailCount = await processDetailCrawls(forceReload, batchSize, createdAfter);
 
   console.log(
     `\nProcessing complete: ${forumCount} forum books and ${detailCount} detail books updated.`,
