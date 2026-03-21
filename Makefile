@@ -21,13 +21,12 @@ deploy:
 	ssh root@$(HOST) "cd /opt/bookAdviser && docker compose up -d"
 
 migrate-remote:
-	@echo "Applying migrations to remote DB via SSHFS..."
-	mkdir -p ./remote_db
-	@echo "Mounting /opt/bookAdviser to ./remote_db..."
-	sshfs root@$(HOST):/opt/bookAdviser ./remote_db
-	@echo "Running Drizzle migrations..."
-	DB_URL=./remote_db/prod.db npx drizzle-kit migrate || (umount ./remote_db && rm -rf ./remote_db && exit 1)
-	@echo "Unmounting ./remote_db..."
-	umount ./remote_db
-	rm -rf ./remote_db
+	@echo "Pulling remote production DB..."
+	mkdir -p ./tmp
+	scp root@$(HOST):/opt/bookAdviser/prod.db ./tmp/prod.remote.db
+	@echo "Applying Drizzle migrations locally..."
+	DB_URL=./tmp/prod.remote.db npm run migrate:run
+	@echo "Uploading migrated DB back to server..."
+	scp ./tmp/prod.remote.db root@$(HOST):/opt/bookAdviser/prod.db
+	rm -f ./tmp/prod.remote.db
 	@echo "Remote migration complete!"
