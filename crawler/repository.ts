@@ -48,7 +48,12 @@ export async function initializeCrawlRecords(
   }
   for (const r of toReset) {
     await db.update(crawl)
-      .set({ status: CrawlStatus.PENDING, htmlBody: null, codePage: null })
+      .set({
+        status: CrawlStatus.PENDING,
+        htmlBody: null,
+        codePage: null,
+        createdAt: now,
+      })
       .where(eq(crawl.url, r.url));
   }
 
@@ -318,6 +323,7 @@ export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
 
   const prodDb = await getAppDbAsync();
   let totalInserted = 0;
+  const now = new Date().toISOString();
 
   for (const booksChunk of chunk(books, CHUNK_SIZE)) {
     const urls = booksChunk.map(b => b.url ?? '').filter(Boolean);
@@ -327,7 +333,13 @@ export async function batchUpsertBooks(books: NewBook[]): Promise<void> {
       : [];
 
     const existingUrls = new Set(existing.map(r => r.url));
-    const toInsert = booksChunk.filter(b => b.url && !existingUrls.has(b.url));
+    const toInsert = booksChunk
+      .filter(b => b.url && !existingUrls.has(b.url))
+      .map((b) => ({
+        ...b,
+        createdAt: b.createdAt ?? now,
+        updatedAt: now,
+      }));
 
     if (toInsert.length > 0) {
       await prodDb.insert(book).values(toInsert);
@@ -347,29 +359,74 @@ export async function updateBooks(books: Partial<NewBook>[]): Promise<void> {
 
   const prodDb = await getAppDbAsync();
   let totalUpdated = 0;
+  const now = new Date().toISOString();
 
   const urls = books.map(b => b.url ?? '').filter(Boolean);
 
   const existing = urls.length > 0
-    ? await prodDb.select({ url: book.url }).from(book).where(inArray(book.url, urls))
+    ? await prodDb.select().from(book).where(inArray(book.url, urls))
     : [];
 
+  const existingByUrl = new Map(existing.map((record) => [record.url, record]));
   const existingUrls = new Set(existing.map(r => r.url));
   const toUpdate = books.filter(b => b.url && existingUrls.has(b.url));
 
+  const buildBookUpdatePatch = (
+    existingRecord: typeof existing[number],
+    incoming: Partial<NewBook>,
+  ): Partial<NewBook> => {
+    const patch: Partial<NewBook> = {};
+
+    for (const [key, value] of Object.entries(incoming) as [keyof NewBook, NewBook[keyof NewBook]][]) {
+      if (key === "id" || key === "url" || key === "createdAt" || key === "updatedAt") {
+        continue;
+      }
+
+      if (value === undefined || value === null) {
+        continue;
+      }
+
+      if (typeof value === "string" && value.trim() === "") {
+        continue;
+      }
+
+      if (typeof value === "number" && Number.isNaN(value)) {
+        continue;
+      }
+
+      if (existingRecord[key] === value) {
+        continue;
+      }
+
+      (patch as Record<string, unknown>)[key] = value;
+    }
+
+    return patch;
+  };
+
   for (const { url, ...data } of toUpdate) {
     if (url) {
-      await prodDb.update(book).set(data).where(eq(book.url, url));
+      const existingRecord = existingByUrl.get(url);
+      if (!existingRecord) {
+        continue;
+      }
+
+      const patch = buildBookUpdatePatch(existingRecord, data);
+      if (Object.keys(patch).length === 0) {
+        continue;
+      }
+
+      await prodDb.update(book).set({ ...patch, updatedAt: now }).where(eq(book.url, url));
       totalUpdated++;
     }
   }
   const toCreate = books.filter(b => b.url && !existingUrls.has(b.url));
   if(toCreate.length > 0) {
-    const now = new Date().toISOString();
     const toCreateWithCrawlId = toCreate.map(b => ({
       ...b,
       id: crypto.randomUUID(),
       createdAt: b.createdAt ?? now,
+      updatedAt: now,
     }));
     await prodDb.insert(book).values(toCreateWithCrawlId as NewBook[]);
     totalUpdated += toCreate.length;

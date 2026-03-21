@@ -38,6 +38,11 @@ export const book = sqliteTable("books", {
   description: text("description"),
   imageUrl: text("image_url"),
   createdAt: text("created_at"),
+  updatedAt: text("updated_at"),
+}, (table) => {
+  return {
+    bookUrlUnique: uniqueIndex("books_url_unique").on(table.url),
+  };
 });
 
 /**

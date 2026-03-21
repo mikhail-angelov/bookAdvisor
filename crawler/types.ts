@@ -12,7 +12,6 @@ export interface CrawlConfig {
 
 export enum CrawlStatus {
   PENDING = 'pending',
-  RUNNING = 'running',
   COMPLETED = 'completed',
   ERROR = 'error'
 }

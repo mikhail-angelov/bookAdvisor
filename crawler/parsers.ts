@@ -67,7 +67,6 @@ export class RutrackerParser implements TorrentListParser {
       try {
         const $row = $(row);
         if ($row.find('th').length > 0) return;
-        
         let topicId = $row.attr('data-topic_id');
         if (!topicId) {
           const $link = $row.find('a[href*="viewtopic.php?t="]');
@@ -146,13 +145,14 @@ export class RutrackerDetailsParser implements TorrentDetailsParser {
       category = breadcrumbs.eq(-1).text().trim();
     }
     
-    const seeders = $('.seeders').length > 0 ? parseNumber($('.seeders').text().trim()) : 0;
+    const seedersText = $('.seeders').first().text().trim();
+    const seeders = seedersText ? parseNumber(seedersText) : undefined;
     
     const sizeText = $('.attach_link.guest li').filter((_, el) => 
       $(el).text().includes('GB') || $(el).text().includes('MB')
     ).text().trim();
-    const sizeMatch = sizeText.match(/\d+\.?\d*\s*[GMK]?B/)?.[0] || '';
-    const size = sizeMatch.replace(/\s/g, ' ').trim();
+    const sizeMatch = sizeText.match(/\d+\.?\d*\s*[GMK]?B/)?.[0];
+    const size = sizeMatch?.replace(/\s/g, ' ').trim();
     
     const postBody = $('.post_body').first();
     const structuredData = this.extractStructuredData(postBody, $);

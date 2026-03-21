@@ -2,6 +2,7 @@
  * Unit tests for repository functions
  */
 
+import { eq } from 'drizzle-orm';
 import { initDatabase, closeDatabase, getCrawlDbAsync, getAppDbAsync, crawl, crawlHistory, book } from '../../db/index';
 import * as repository from '../repository';
 import { CrawlType, CrawlStatus } from '../types';
@@ -67,6 +68,29 @@ describe('Repository', () => {
       const records = await db!.select().from(crawl);
       
       expect(records[0].type).toBe(type);
+    });
+
+    it('should refresh createdAt when reusing existing forum page records', async () => {
+      const forumId = 2387;
+      await repository.initializeCrawlRecords(forumId, 1);
+
+      const db = await getCrawlDbAsync();
+      const original = await db.select().from(crawl).get();
+      expect(original).toBeDefined();
+
+      await repository.updateCrawlRecord(original!.id, {
+        status: CrawlStatus.COMPLETED,
+        htmlBody: '<html>old</html>',
+        createdAt: '2024-01-01T00:00:00.000Z',
+      });
+
+      await repository.initializeCrawlRecords(forumId, 1);
+
+      const refreshed = await db.select().from(crawl).get();
+      expect(refreshed!.id).toBe(original!.id);
+      expect(refreshed!.status).toBe(CrawlStatus.PENDING);
+      expect(refreshed!.htmlBody).toBeNull();
+      expect(refreshed!.createdAt).not.toBe('2024-01-01T00:00:00.000Z');
     });
   });
 
@@ -329,9 +353,41 @@ describe('Repository', () => {
 
       const updated1 = records.find(r => r.url === 'https://example.com/update-1');
       expect(updated1!.title).toBe('Updated Title');
+      expect(updated1!.updatedAt).toBeDefined();
 
       const updated2 = records.find(r => r.url === 'https://example.com/update-2');
       expect(updated2!.title).toBe('New Book Title');
+      expect(updated2!.updatedAt).toBeDefined();
+    });
+
+    it('should not overwrite existing values with empty strings or undefined fields', async () => {
+      const now = new Date().toISOString();
+      const db = await getAppDbAsync();
+
+      await db.insert(book).values({
+        id: 'book-keep-values',
+        url: 'https://example.com/keep-values',
+        title: 'Original Title',
+        authorName: 'Original Author',
+        genre: 'Original Genre',
+        createdAt: now,
+        updatedAt: now,
+      } as any);
+
+      await repository.updateBooks([
+        {
+          url: 'https://example.com/keep-values',
+          title: 'Updated Title',
+          authorName: '',
+          genre: undefined,
+        },
+      ]);
+
+      const saved = await db.select().from(book).where(eq(book.url, 'https://example.com/keep-values')).get();
+      expect(saved!.title).toBe('Updated Title');
+      expect(saved!.authorName).toBe('Original Author');
+      expect(saved!.genre).toBe('Original Genre');
+      expect(saved!.updatedAt).toBeDefined();
     });
   });
 });
