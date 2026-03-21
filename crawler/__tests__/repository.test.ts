@@ -193,6 +193,30 @@ describe('Repository', () => {
       expect(records[0].type).toBe(CrawlType.TORRENT_DETAILS);
       expect(records[0].status).toBe(CrawlStatus.PENDING);
     });
+
+    it('should reset existing detail crawl records back to pending', async () => {
+      const torrentUrl = 'https://rutracker.org/forum/viewtopic.php?t=123456';
+
+      await repository.createFreshTorrentDetailCrawlRecords([torrentUrl]);
+
+      const db = await getCrawlDbAsync();
+      const existing = await db.select().from(crawl).where(eq(crawl.url, torrentUrl)).get();
+
+      await repository.updateCrawlRecord(existing!.id, {
+        status: CrawlStatus.COMPLETED,
+        htmlBody: '<html>old detail</html>',
+        createdAt: '2024-01-01T00:00:00.000Z',
+      });
+
+      const recordIds = await repository.createFreshTorrentDetailCrawlRecords([torrentUrl]);
+      const refreshed = await db.select().from(crawl).where(eq(crawl.url, torrentUrl)).get();
+
+      expect(recordIds).toHaveLength(1);
+      expect(recordIds[0]).toBe(existing!.id);
+      expect(refreshed!.status).toBe(CrawlStatus.PENDING);
+      expect(refreshed!.htmlBody).toBeNull();
+      expect(refreshed!.createdAt).not.toBe('2024-01-01T00:00:00.000Z');
+    });
   });
 
   describe('markCrawlRecordCompleted', () => {

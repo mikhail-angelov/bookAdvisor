@@ -123,8 +123,8 @@ export async function updateCrawlRecord(
 }
 
 /**
- * Create crawl records for torrent detail pages, skipping already-known URLs.
- * Uses a single bulk SELECT to avoid N+1 queries.
+ * Create or refresh crawl records for torrent detail pages.
+ * Existing URLs are reset back to pending so daily runs re-fetch them.
  */
 export async function createFreshTorrentDetailCrawlRecords(
   torrentUrls: string[]
@@ -133,19 +133,18 @@ export async function createFreshTorrentDetailCrawlRecords(
 
   const db = await getCrawlDbAsync();
   const now = new Date().toISOString();
-  const allNewIds: string[] = [];
+  const allIds: string[] = [];
 
   for (const urlsChunk of chunk(torrentUrls, CHUNK_SIZE)) {
-    // Find which URLs already exist
     const existing = await db
-      .select({ url: crawl.url })
+      .select({ id: crawl.id, url: crawl.url })
       .from(crawl)
       .where(inArray(crawl.url, urlsChunk));
 
-    const existingUrls = new Set(existing.map(r => r.url));
+    const existingByUrl = new Map(existing.map(r => [r.url, r.id]));
 
     const newRecords: NewCrawl[] = urlsChunk
-      .filter(url => !existingUrls.has(url))
+      .filter(url => !existingByUrl.has(url))
       .map(url => ({
         id: uuidv4(),
         url,
@@ -156,15 +155,28 @@ export async function createFreshTorrentDetailCrawlRecords(
 
     if (newRecords.length > 0) {
       await db.insert(crawl).values(newRecords);
-      allNewIds.push(...newRecords.map(r => r.id));
+      allIds.push(...newRecords.map(r => r.id));
+    }
+
+    const toReset = urlsChunk.filter(url => existingByUrl.has(url));
+    for (const url of toReset) {
+      await db.update(crawl)
+        .set({
+          status: CrawlStatus.PENDING,
+          htmlBody: null,
+          codePage: null,
+          createdAt: now,
+        })
+        .where(eq(crawl.url, url));
+      allIds.push(existingByUrl.get(url)!);
     }
   }
 
-  if (allNewIds.length > 0) {
-    console.log(`Created ${allNewIds.length} detail crawl records`);
+  if (allIds.length > 0) {
+    console.log(`Prepared ${allIds.length} detail crawl records for fetching`);
   }
 
-  return allNewIds;
+  return allIds;
 }
 
 /**

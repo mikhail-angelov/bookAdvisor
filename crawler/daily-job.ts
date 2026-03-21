@@ -69,7 +69,7 @@ async function collectSummary(
   const [booksUpdatedResult] = await appDb
     .select({ count: count() })
     .from(book)
-    .where(gte(book.createdAt, startedAtIso));
+    .where(gte(book.updatedAt, startedAtIso));
 
   const [totalBooksResult] = await appDb.select({ count: count() }).from(book);
 
