@@ -31,5 +31,6 @@ RUN npm ci --omit=dev
 
 # Copy built application
 COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/next.config.js ./next.config.js
