@@ -20,6 +20,9 @@ FROM node:20-alpine AS production
 
 WORKDIR /app
 
+# Set production environment
+ENV NODE_ENV=production
+
 # Create data directory
 RUN mkdir -p /app/data
 
@@ -29,7 +32,7 @@ COPY package*.json ./
 # Install production dependencies
 RUN npm ci --omit=dev
 
-# Copy built application
+# Copy built application - only compiled files needed
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/public ./public
