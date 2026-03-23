@@ -23,6 +23,9 @@ export function startDailyCrawlScheduler(
     }
 
     const delayMs = millisecondsUntilNextUtcMidnight(new Date());
+    if(delayMs > 1000 * 60){
+      runDailyCrawlJob(overrides);
+    }
     timeoutId = setTimeout(async () => {
       if (running) {
         scheduleNextRun();

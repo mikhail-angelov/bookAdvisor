@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
 import { eq, and, sql, desc, inArray, like, notInArray, or } from 'drizzle-orm';
-import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
+// import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
 import { verifySessionToken } from '@/lib/auth';
 
 /**
@@ -375,71 +375,71 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    if (provider === 'vector') {
-      try {
-        // Find liked books (rating >= 4)
-        const likedBookRecords = await db
-          .select({ bookId: userAnnotation.bookId })
-          .from(userAnnotation)
-          .where(and(
-            eq(userAnnotation.userId, targetUserId),
-            sql`${userAnnotation.rating} >= 4`
-          ))
-          .all();
+    // if (provider === 'vector') {
+    //   try {
+    //     // Find liked books (rating >= 4)
+    //     const likedBookRecords = await db
+    //       .select({ bookId: userAnnotation.bookId })
+    //       .from(userAnnotation)
+    //       .where(and(
+    //         eq(userAnnotation.userId, targetUserId),
+    //         sql`${userAnnotation.rating} >= 4`
+    //       ))
+    //       .all();
 
-        const likedIds = likedBookRecords.map((r: { bookId: string }) => r.bookId);
+    //     const likedIds = likedBookRecords.map((r: { bookId: string }) => r.bookId);
 
-        if (likedIds.length > 0) {
-          // Retrieve their vectors
-          const vectors = await retrieveVectors(likedIds);
-          const validVectors = vectors.filter(v => v && v.length > 0);
+    //     if (likedIds.length > 0) {
+    //       // Retrieve their vectors
+    //       const vectors = await retrieveVectors(likedIds);
+    //       const validVectors = vectors.filter(v => v && v.length > 0);
 
-          if (validVectors.length > 0) {
-            // Calculate average vector (centroid)
-            const vectorSize = validVectors[0].length;
-            const centroid = new Array(vectorSize).fill(0);
-            for (const vec of validVectors) {
-              for (let i = 0; i < vectorSize; i++) {
-                centroid[i] += vec[i];
-              }
-            }
-            for (let i = 0; i < vectorSize; i++) {
-              centroid[i] /= validVectors.length;
-            }
+    //       if (validVectors.length > 0) {
+    //         // Calculate average vector (centroid)
+    //         const vectorSize = validVectors[0].length;
+    //         const centroid = new Array(vectorSize).fill(0);
+    //         for (const vec of validVectors) {
+    //           for (let i = 0; i < vectorSize; i++) {
+    //             centroid[i] += vec[i];
+    //           }
+    //         }
+    //         for (let i = 0; i < vectorSize; i++) {
+    //           centroid[i] /= validVectors.length;
+    //         }
 
-            // Query Qdrant
-            const searchResults = await searchSimilar(centroid, limit, excludeIds);
+    //         // Query Qdrant
+    //         const searchResults = await searchSimilar(centroid, limit, excludeIds);
 
-            // Fetch the actual book details from SQLite
-            const recommendedBookIds = searchResults.map(res => String(res.id));
-            if (recommendedBookIds.length > 0) {
-              const recommendedBooks = await db
-                .select()
-                .from(book)
-                .where(inArray(book.id, recommendedBookIds))
-                .all();
+    //         // Fetch the actual book details from SQLite
+    //         const recommendedBookIds = searchResults.map(res => String(res.id));
+    //         if (recommendedBookIds.length > 0) {
+    //           const recommendedBooks = await db
+    //             .select()
+    //             .from(book)
+    //             .where(inArray(book.id, recommendedBookIds))
+    //             .all();
 
-              // Sort them to match Qdrant rank
-              const sortedBooks = recommendedBooks.sort((a, b) => 
-                recommendedBookIds.indexOf(a.id) - recommendedBookIds.indexOf(b.id)
-              );
+    //           // Sort them to match Qdrant rank
+    //           const sortedBooks = recommendedBooks.sort((a, b) => 
+    //             recommendedBookIds.indexOf(a.id) - recommendedBookIds.indexOf(b.id)
+    //           );
 
-              return NextResponse.json({
-                recommendations: sortedBooks.map(b => ({
-                  ...b,
-                  score: searchResults.find(r => String(r.id) === b.id)?.score || 0,
-                  reasons: ['Similar to books you liked']
-                })),
-                preferences: { totalLiked: likedIds.length },
-                reason: 'vector-similarity',
-              });
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Vector search failed, falling back to hybrid:', err);
-      }
-    }
+    //           return NextResponse.json({
+    //             recommendations: sortedBooks.map(b => ({
+    //               ...b,
+    //               score: searchResults.find(r => String(r.id) === b.id)?.score || 0,
+    //               reasons: ['Similar to books you liked']
+    //             })),
+    //             preferences: { totalLiked: likedIds.length },
+    //             reason: 'vector-similarity',
+    //           });
+    //         }
+    //       }
+    //     }
+    //   } catch (err) {
+    //     console.error('Vector search failed, falling back to hybrid:', err);
+    //   }
+    // }
 
     const allBooks = await getHybridCandidates(db, prefs, excludeIds, limit);
 

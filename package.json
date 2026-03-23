@@ -4,15 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "next build",
+    "build": "npm run build:next && npm run build:server",
+    "build:next": "next build",
+    "build:server": "tsc --project tsconfig.server.json --outDir dist",
     "migrate:run": "drizzle-kit migrate",
     "migrate:generate": "drizzle-kit generate",
-    "start": "next start",
+    "start": "node dist/server.js",
     "start:server": "tsx server.ts",
     "test": "jest",
     "lint": "tsc --noEmit",
     "crawl": "tsx crawler/cli.ts",
-    "generate-embeddings": "tsx scripts/generateEmbeddings.ts"
+    "generate-embeddings": "tsx scripts/generateEmbeddings.ts",
+    "init:crawl-db": "tsx scripts/init-crawl-db.ts"
   },
   "dependencies": {
     "@qdrant/js-client-rest": "^1.17.0",

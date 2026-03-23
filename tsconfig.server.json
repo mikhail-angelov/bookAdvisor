@@ -1,0 +1,35 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es2020",
+    "outDir": "dist",
+    "noEmit": false,
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "jsx": "preserve",
+    "incremental": false,
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": [
+    "server.ts",
+    "db/**/*.ts",
+    "crawler/**/*.ts",
+    "lib/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "app/**/*",
+    "components/**/*",
+    "public/**/*"
+  ]
+}
