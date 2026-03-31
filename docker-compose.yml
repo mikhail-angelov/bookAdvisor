@@ -8,6 +8,7 @@ services:
       - "127.0.0.1:3010:3000"
     volumes:
       - ./prod.db:/app/data/prod.db
+      - ./crawl.db:/app/data/crawl.db
     env_file:
       - ./.env
     restart: unless-stopped
