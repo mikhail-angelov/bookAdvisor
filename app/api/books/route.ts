@@ -1,11 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation } from '@/db/schema';
-import { eq, like, or, and, sql, asc, desc, notInArray } from 'drizzle-orm';
+import { eq, like, or, and, sql, asc, desc, notInArray, inArray } from 'drizzle-orm';
 import { verifySessionToken } from '@/lib/auth';
 
 const SORTABLE_COLUMNS = ['title', 'genre', 'seeds', 'downloads', 'lastCommentDate'] as const;
 type SortColumn = typeof SORTABLE_COLUMNS[number];
+type BookWithOptionalAnnotation = typeof book.$inferSelect & {
+  userAnnotation?: typeof userAnnotation.$inferSelect | null;
+};
+
+function hasMeaningfulAnnotation(annotation?: typeof userAnnotation.$inferSelect | null): boolean {
+  if (!annotation) return false;
+
+  return (
+    annotation.readStatus !== null &&
+    annotation.readStatus !== undefined ||
+    annotation.rating > 0 ||
+    annotation.performanceRating > 0 ||
+    (typeof annotation.annotation === 'string' && annotation.annotation.trim().length > 0)
+  );
+}
+
+function sortAuthorBooksForModal(items: BookWithOptionalAnnotation[]): BookWithOptionalAnnotation[] {
+  return [...items].sort((left, right) => {
+    const leftAnnotated = hasMeaningfulAnnotation(left.userAnnotation);
+    const rightAnnotated = hasMeaningfulAnnotation(right.userAnnotation);
+
+    if (leftAnnotated !== rightAnnotated) {
+      return leftAnnotated ? 1 : -1;
+    }
+
+    return left.title.localeCompare(right.title, 'ru', { sensitivity: 'base' });
+  });
+}
 
 const columnMap: Record<SortColumn, typeof book[keyof typeof book]> = {
   title: book.title,
@@ -19,6 +47,7 @@ export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const q = searchParams.get('q') || '';
+    const author = searchParams.get('author') || '';
     const genre = searchParams.get('genre') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
@@ -26,6 +55,7 @@ export async function GET(req: NextRequest) {
     const sortBy = (searchParams.get('sortBy') || 'lastCommentDate') as SortColumn;
     const sortDir = searchParams.get('sortDir') === 'asc' ? 'asc' : 'desc';
     const excludeAnnotated = searchParams.get('excludeAnnotated') !== 'false'; // Default to true
+    const includeAnnotations = searchParams.get('includeAnnotations') === 'true';
 
     const db = await getAppDbAsync();
 
@@ -79,6 +109,21 @@ export async function GET(req: NextRequest) {
           like(book.title, `%${capitalizedQ}%`),
           like(book.authorName, `%${capitalizedQ}%`),
           like(book.series, `%${capitalizedQ}%`)
+        )
+      );
+    }
+
+    if (author) {
+      const lowerAuthor = author.toLowerCase();
+      const upperAuthor = author.toUpperCase();
+      const capitalizedAuthor = author.charAt(0).toUpperCase() + author.slice(1).toLowerCase();
+
+      conditions.push(
+        or(
+          eq(book.authorName, author),
+          eq(book.authorName, lowerAuthor),
+          eq(book.authorName, upperAuthor),
+          eq(book.authorName, capitalizedAuthor),
         )
       );
     }
@@ -150,7 +195,31 @@ export async function GET(req: NextRequest) {
       query = query.where(and(...conditions)) as any;
     }
 
-    const books = await (query as any).orderBy(orderExpr).limit(limit).offset(offset).all();
+    const books: typeof book.$inferSelect[] = await (query as any).orderBy(orderExpr).limit(limit).offset(offset).all();
+
+    let booksWithAnnotations: BookWithOptionalAnnotation[] = books;
+    if (includeAnnotations && userId && books.length > 0) {
+      const annotations = await db
+        .select()
+        .from(userAnnotation)
+        .where(
+          and(
+            eq(userAnnotation.userId, userId),
+            inArray(userAnnotation.bookId, books.map((item: typeof book.$inferSelect) => item.id))
+          )
+        )
+        .all();
+
+      const annotationByBookId = new Map(annotations.map((item: typeof userAnnotation.$inferSelect) => [item.bookId, item] as const));
+      booksWithAnnotations = books.map((item: typeof book.$inferSelect) => ({
+        ...item,
+        userAnnotation: annotationByBookId.get(item.id) ?? null,
+      }));
+    }
+
+    if (author && includeAnnotations && userId) {
+      booksWithAnnotations = sortAuthorBooksForModal(booksWithAnnotations);
+    }
 
     // Total count
     let countQuery = db.select({ count: sql<number>`count(*)` }).from(book);
@@ -161,7 +230,7 @@ export async function GET(req: NextRequest) {
     const total = countResult?.count ?? 0;
 
     return NextResponse.json({
-      books,
+      books: booksWithAnnotations,
       pagination: {
         page,
         limit,

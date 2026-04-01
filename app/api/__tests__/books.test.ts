@@ -1,8 +1,11 @@
 import { GET } from '../books/route';
-import { initDatabase, closeDatabase, getAppDbAsync, book as bookSchema } from '@/db/index';
+import { initDatabase, closeDatabase, getAppDbAsync, book as bookSchema, user as userSchema, userAnnotation as userAnnotationSchema } from '@/db/index';
 import { NextRequest } from 'next/server';
+import { createSessionToken } from '@/lib/auth';
 
 describe('GET /api/books', () => {
+  let authToken: string;
+
   beforeAll(async () => {
     // Initialize in-memory test database
     await initDatabase('test');
@@ -15,7 +18,17 @@ describe('GET /api/books', () => {
   beforeEach(async () => {
     // Clear books table before each test
     const db = await getAppDbAsync();
+    await db.delete(userAnnotationSchema);
     await db.delete(bookSchema);
+    await db.delete(userSchema);
+
+    await db.insert(userSchema).values({
+      id: 'user-1',
+      email: 'user@example.com',
+      createdAt: new Date().toISOString(),
+    });
+
+    authToken = createSessionToken('user-1', 'user@example.com');
   });
 
   it('should filter books by genre with comma-separated values', async () => {
@@ -280,5 +293,67 @@ describe('GET /api/books', () => {
     expect(response.status).toBe(200);
     expect(data.books).toHaveLength(1);
     expect(data.books[0].title).toBe('Война и мир - Фантастика');
+  });
+
+  it('should filter books by exact author name and include current user annotations', async () => {
+    const db = await getAppDbAsync();
+
+    await db.insert(bookSchema).values([
+      {
+        id: '1',
+        url: 'https://example.com/1',
+        title: 'Zeta Book',
+        category: 'Фантастика',
+        authorName: 'Аркадий Стругацкий',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: '2',
+        url: 'https://example.com/2',
+        title: 'Alpha Book',
+        category: 'Фантастика',
+        authorName: 'Аркадий Стругацкий',
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: '3',
+        url: 'https://example.com/3',
+        title: 'Book 3',
+        category: 'Фантастика',
+        authorName: 'Борис Стругацкий',
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    await db.insert(userAnnotationSchema).values({
+      id: 'annotation-1',
+      userId: 'user-1',
+      bookId: '2',
+      rating: 4,
+      performanceRating: 5,
+      readStatus: 'read',
+      annotation: 'done',
+      createdAt: new Date().toISOString(),
+    });
+
+    const request = new NextRequest('http://localhost:3000/api/books?author=%D0%90%D1%80%D0%BA%D0%B0%D0%B4%D0%B8%D0%B9%20%D0%A1%D1%82%D1%80%D1%83%D0%B3%D0%B0%D1%86%D0%BA%D0%B8%D0%B9&excludeAnnotated=false&includeAnnotations=true&sortBy=title&sortDir=asc', {
+      headers: {
+        cookie: `auth_token=${authToken}`,
+      },
+    });
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.books).toHaveLength(2);
+    expect(data.books.map((item: any) => item.id)).toEqual(['1', '2']);
+    expect(data.books.map((item: any) => item.title)).toEqual(['Zeta Book', 'Alpha Book']);
+    expect(data.books[0].userAnnotation).toBeNull();
+    expect(data.books[1].userAnnotation).toMatchObject({
+      bookId: '2',
+      rating: 4,
+      performanceRating: 5,
+      readStatus: 'read',
+    });
   });
 });

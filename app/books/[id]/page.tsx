@@ -1,57 +1,71 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { startTransition, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Book, UserAnnotation } from '@/db/schema';
+import { Book } from '@/db/schema';
 import { toast } from 'sonner';
 import Link from 'next/link';
 import { useAppStore } from '@/app/store';
 import { DEFAULT_READ_STATUS, type ReadStatus } from '@/lib/read-status';
 import { bookNavigationCache, type BookNavigationNeighbors } from '@/lib/book-navigation-cache';
+import AuthorBooksModal, { type EditableAnnotation, type AuthorBook, toEditableAnnotation } from '@/components/AuthorBooksModal';
+import StarRating from '@/components/StarRating';
+
+const readStatusConfig: Record<ReadStatus, { label: string; color: string; icon: string }> = {
+    want_to_read: { label: 'Want to Read', color: 'bg-slate-600', icon: '○' },
+    reading: { label: 'Reading', color: 'bg-amber-500', icon: '◐' },
+    read: { label: 'Read', color: 'bg-emerald-500', icon: '●' },
+    dropped: { label: 'Dropped', color: 'bg-rose-500', icon: '✕' },
+};
 
 export default function BookDetailsPage({ params }: { params: { id: string } }) {
     const router = useRouter();
     const searchParams = useSearchParams();
     const [book, setBook] = useState<Book | null>(null);
-    const [annotation, setAnnotation] = useState<Partial<UserAnnotation>>({
-        annotation: '',
-        rating: 0,
-        performanceRating: 0,
-        readStatus: DEFAULT_READ_STATUS
-    });
+    const [annotation, setAnnotation] = useState<EditableAnnotation>(toEditableAnnotation());
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
     const [neighbors, setNeighbors] = useState<BookNavigationNeighbors | null>(null);
+    const [isAuthorModalOpen, setIsAuthorModalOpen] = useState(false);
+    const [isAuthorBooksLoading, setIsAuthorBooksLoading] = useState(false);
+    const [authorBooks, setAuthorBooks] = useState<AuthorBook[]>([]);
+    const [loadedAuthor, setLoadedAuthor] = useState<string | null>(null);
+    const [savingAuthorBookIds, setSavingAuthorBookIds] = useState<Record<string, boolean>>({});
     const { user, setUser } = useAppStore();
     const navigationKey = searchParams.get('nav');
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const bookRes = await fetch(`/api/books/${params.id}`);
+                const [bookRes, authRes] = await Promise.all([
+                    fetch(`/api/books/${params.id}`),
+                    fetch('/api/auth/me'),
+                ]);
+
                 if (!bookRes.ok) {
                     toast.error('Book not found');
                     router.push('/books');
                     return;
                 }
+
                 const bookData = await bookRes.json();
                 setBook(bookData.book);
 
-                // Check auth status
-                const authRes = await fetch("/api/auth/me");
                 const authData = await authRes.json();
                 if (authData.authenticated && authData.user) {
                     setUser(authData.user);
-                    // Fetch annotation only if authenticated
                     const annRes = await fetch(`/api/books/${params.id}/annotation`);
                     const annData = await annRes.json();
                     if (annData.annotation) {
-                        setAnnotation(annData.annotation);
+                        setAnnotation(toEditableAnnotation(annData.annotation));
+                    } else {
+                        setAnnotation(toEditableAnnotation());
                     }
                 } else {
                     setUser(null);
+                    setAnnotation(toEditableAnnotation());
                 }
-            } catch (error) {
+            } catch {
                 toast.error('Error loading data');
             } finally {
                 setIsLoading(false);
@@ -76,18 +90,113 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
             if (!res.ok) throw new Error('Failed to save');
             toast.success('Saved!');
-        } catch (error) {
+        } catch {
             toast.error('Error saving');
         } finally {
             setIsSaving(false);
         }
     };
 
-    const readStatusConfig: Record<ReadStatus, { label: string; color: string; icon: string }> = {
-        want_to_read: { label: 'Want to Read', color: 'bg-slate-600', icon: '○' },
-        reading: { label: 'Reading', color: 'bg-amber-500', icon: '◐' },
-        read: { label: 'Read', color: 'bg-emerald-500', icon: '●' },
-        dropped: { label: 'Dropped', color: 'bg-rose-500', icon: '✕' },
+    const loadAuthorBooks = async () => {
+        if (!book?.authorName) return;
+
+        setIsAuthorBooksLoading(true);
+        try {
+            const params = new URLSearchParams({
+                author: book.authorName,
+                limit: '200',
+                sortBy: 'title',
+                sortDir: 'asc',
+                excludeAnnotated: 'false',
+                includeAnnotations: 'true',
+            });
+
+            const res = await fetch(`/api/books?${params.toString()}`);
+            if (!res.ok) {
+                throw new Error('Failed to load author books');
+            }
+
+            const data = await res.json();
+            startTransition(() => {
+                setAuthorBooks(data.books ?? []);
+                setLoadedAuthor(book.authorName || null);
+            });
+        } catch {
+            toast.error('Error loading author books');
+        } finally {
+            setIsAuthorBooksLoading(false);
+        }
+    };
+
+    const handleOpenAuthorModal = async () => {
+        setIsAuthorModalOpen(true);
+        if (!book?.authorName || loadedAuthor === book.authorName) {
+            return;
+        }
+
+        await loadAuthorBooks();
+    };
+
+    const saveAuthorBookAnnotation = async (bookId: string, nextAnnotation: EditableAnnotation) => {
+        const previousBook = authorBooks.find((item) => item.id === bookId);
+        if (!previousBook) return;
+
+        const previousAnnotation = toEditableAnnotation(previousBook.userAnnotation);
+
+        setSavingAuthorBookIds((current) => ({ ...current, [bookId]: true }));
+        startTransition(() => {
+            setAuthorBooks((current) =>
+                current.map((item) =>
+                    item.id === bookId
+                        ? { ...item, userAnnotation: nextAnnotation }
+                        : item
+                )
+            );
+        });
+
+        if (bookId === params.id) {
+            setAnnotation(nextAnnotation);
+        }
+
+        try {
+            const res = await fetch(`/api/books/${bookId}/annotation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(nextAnnotation),
+            });
+
+            if (res.status === 401) {
+                throw new Error('Unauthorized');
+            }
+
+            if (!res.ok) {
+                throw new Error('Failed to save');
+            }
+        } catch (error) {
+            startTransition(() => {
+                setAuthorBooks((current) =>
+                    current.map((item) =>
+                        item.id === bookId
+                            ? { ...item, userAnnotation: previousAnnotation }
+                            : item
+                    )
+                );
+            });
+
+            if (bookId === params.id) {
+                setAnnotation(previousAnnotation);
+            }
+
+            if (error instanceof Error && error.message === 'Unauthorized') {
+                toast.error('Sign in to update statuses and ratings');
+                setIsAuthorModalOpen(false);
+                router.push('/login');
+            } else {
+                toast.error('Error saving changes');
+            }
+        } finally {
+            setSavingAuthorBookIds((current) => ({ ...current, [bookId]: false }));
+        }
     };
 
     if (isLoading) {
@@ -103,7 +212,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
     if (!book) return null;
 
-    const statusConfig = readStatusConfig[annotation.readStatus as ReadStatus] || readStatusConfig.want_to_read;
+    const statusConfig = readStatusConfig[annotation.readStatus] || readStatusConfig.want_to_read;
     const backLabel = neighbors?.source === 'recommendations' ? 'Back to Recommendations' : 'Back to Library';
     const handleBack = () => {
         if (neighbors?.returnHref) {
@@ -121,12 +230,11 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
 
     return (
         <div className="min-h-screen bg-slate-50">
-            {/* Header */}
             <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <button 
+                            <button
                                 onClick={handleBack}
                                 className="flex items-center gap-2 text-slate-500 hover:text-slate-800 transition-colors text-sm"
                             >
@@ -172,26 +280,33 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
             </header>
 
             <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Layout: Left content, Right sidebar */}
                 <div className="flex flex-col lg:flex-row gap-8">
-                    {/* Left: Main Content */}
                     <div className="flex-1">
-                        {/* Category */}
                         <div className="flex flex-wrap gap-2 mb-4">
                             <span className="px-2.5 py-1 bg-slate-800 text-white text-xs font-medium rounded">
                                 {book.category}
                             </span>
                         </div>
 
-                        {/* Title & Author */}
                         <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 leading-tight mb-2">
                             {book.title}
                         </h1>
-                        <p className="text-lg text-slate-600 mb-6">
+                        <p className="text-lg text-slate-600 mb-3">
                             by <span className="text-slate-800 font-medium">{book.authorName || 'Unknown Author'}</span>
                         </p>
+                        {book.authorName && (
+                            <button
+                                type="button"
+                                onClick={handleOpenAuthorModal}
+                                className="inline-flex items-center gap-2 mb-6 px-3.5 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium text-slate-700 hover:border-slate-400 hover:text-slate-900 transition-colors"
+                            >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0l-4-4m4 4l-4 4" />
+                                </svg>
+                                All Books by This Author
+                            </button>
+                        )}
 
-                        {/* Meta Grid - 2 columns label:value */}
                         <div className="bg-white rounded-lg border border-slate-200 divide-y divide-slate-100 mb-6">
                             {book.authors && (
                                 <div className="grid grid-cols-2 p-3">
@@ -222,7 +337,6 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             )}
                         </div>
 
-                        {/* Meta Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
                             {book.duration && (
                                 <div className="bg-white rounded-lg p-4 border border-slate-200">
@@ -248,7 +362,6 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         </div>
 
-                        {/* Torrent Stats */}
                         <div className="grid grid-cols-3 gap-4 mb-6">
                             <div className="text-center p-3 bg-emerald-50 rounded-lg">
                                 <div className="text-2xl font-bold text-emerald-600">{book.seeds || 0}</div>
@@ -264,7 +377,6 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             </div>
                         </div>
 
-                        {/* Description */}
                         {book.description && (
                             <section className="bg-white rounded-xl p-6 border border-slate-200">
                                 <h2 className="text-lg font-semibold text-slate-900 mb-4">Description</h2>
@@ -275,9 +387,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                         )}
                     </div>
 
-                    {/* Right: Sidebar */}
                     <div className="lg:w-72 flex-shrink-0">
-                        {/* Book Cover */}
                         <div className="mb-4">
                             {book.imageUrl ? (
                                 <img
@@ -294,14 +404,12 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             )}
                         </div>
 
-                        {/* Status Badge - only show if user is authenticated */}
                         {user && (
                             <div className={`text-center mb-4 ${statusConfig.color} text-white px-4 py-2 rounded-lg font-medium text-sm`}>
                                 {statusConfig.label}
                             </div>
                         )}
 
-                        {/* View Topic Link */}
                         {book.url && (
                             <a
                                 href={book.url}
@@ -316,13 +424,11 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                             </a>
                         )}
 
-                        {/* My Notes Panel - only show if user is authenticated */}
                         {user ? (
                             <div className="bg-white rounded-xl p-5 border border-slate-200">
                                 <h2 className="text-base font-semibold text-slate-900 mb-4">My Notes</h2>
 
                                 <div className="space-y-4">
-                                    {/* Read Status */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
                                             Status
@@ -331,7 +437,7 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                             {Object.entries(readStatusConfig).map(([value, config]) => (
                                                 <button
                                                     key={value}
-                                                    onClick={() => setAnnotation({ ...annotation, readStatus: value as any })}
+                                                    onClick={() => setAnnotation((current) => ({ ...current, readStatus: value as ReadStatus }))}
                                                     className={`px-2 py-1.5 rounded text-xs font-medium transition-all ${
                                                         annotation.readStatus === value
                                                             ? `${config.color} text-white`
@@ -344,68 +450,40 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                         </div>
                                     </div>
 
-                                    {/* Rating */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
                                             Rating
                                         </label>
-                                        <div className="flex gap-0.5">
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <button
-                                                    key={star}
-                                                    onClick={() => setAnnotation({ ...annotation, rating: annotation.rating === star ? 0 : star })}
-                                                    className="p-0.5"
-                                                >
-                                                    <svg 
-                                                        className={`w-6 h-6 ${star <= (annotation.rating || 0) ? 'text-amber-400' : 'text-slate-300'}`}
-                                                        fill="currentColor" 
-                                                        viewBox="0 0 20 20"
-                                                    >
-                                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                    </svg>
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <StarRating
+                                            value={annotation.rating}
+                                            colorClass="text-amber-400"
+                                            onSelect={(value) => setAnnotation((current) => ({ ...current, rating: value }))}
+                                        />
                                     </div>
 
-                                    {/* Performance Rating */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
                                             Audio
                                         </label>
-                                        <div className="flex gap-0.5">
-                                            {[1, 2, 3, 4, 5].map((star) => (
-                                                <button
-                                                    key={star}
-                                                    onClick={() => setAnnotation({ ...annotation, performanceRating: annotation.performanceRating === star ? 0 : star })}
-                                                    className="p-0.5"
-                                                >
-                                                    <svg 
-                                                        className={`w-6 h-6 ${star <= (annotation.performanceRating || 0) ? 'text-emerald-400' : 'text-slate-300'}`}
-                                                        fill="currentColor" 
-                                                        viewBox="0 0 20 20"
-                                                    >
-                                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                                    </svg>
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <StarRating
+                                            value={annotation.performanceRating}
+                                            colorClass="text-emerald-400"
+                                            onSelect={(value) => setAnnotation((current) => ({ ...current, performanceRating: value }))}
+                                        />
                                     </div>
 
-                                    {/* Notes */}
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">
                                             Notes
                                         </label>
                                         <textarea
                                             value={annotation.annotation || ''}
-                                            onChange={(e) => setAnnotation({ ...annotation, annotation: e.target.value })}
+                                            onChange={(e) => setAnnotation((current) => ({ ...current, annotation: e.target.value }))}
                                             placeholder="Add notes..."
                                             className="w-full h-28 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:border-transparent resize-none"
                                         />
                                     </div>
 
-                                    {/* Save Button */}
                                     <button
                                         onClick={handleSaveAnnotation}
                                         disabled={isSaving}
@@ -416,7 +494,6 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                                 </div>
                             </div>
                         ) : (
-                            /* Show sign in prompt for non-authenticated users */
                             <div className="bg-white rounded-xl p-5 border border-slate-200 text-center">
                                 <p className="text-sm text-slate-600 mb-4">Sign in to save your notes and track your reading</p>
                                 <Link
@@ -430,6 +507,18 @@ export default function BookDetailsPage({ params }: { params: { id: string } }) 
                     </div>
                 </div>
             </main>
+            <AuthorBooksModal
+                authorName={book.authorName || 'Author'}
+                books={authorBooks}
+                currentBookId={book.id}
+                isOpen={isAuthorModalOpen}
+                isLoading={isAuthorBooksLoading}
+                navigationKey={navigationKey}
+                userEmail={user?.email}
+                savingBookIds={savingAuthorBookIds}
+                onClose={() => setIsAuthorModalOpen(false)}
+                onSaveAnnotation={saveAuthorBookAnnotation}
+            />
         </div>
     );
 }
