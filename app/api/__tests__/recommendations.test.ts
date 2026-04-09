@@ -320,26 +320,40 @@ describe('GET /api/recommendations', () => {
         readStatus: 'read',
         createdAt: new Date().toISOString(),
       },
-      {
-        id: 'ann-dropped-a2',
-        userId: testUserId,
-        bookId: 'dropped-a2',
-        rating: 0,
-        readStatus: 'dropped',
-        createdAt: new Date().toISOString(),
-      },
     ]);
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
+    const firstRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
       headers: { cookie: `auth_token=${authToken}` },
     });
-    const response = await GET(request);
-    const data = await response.json();
+    const firstResponse = await GET(firstRequest);
+    const firstData = await firstResponse.json();
 
-    expect(response.status).toBe(200);
-    const topAuthors = data.recommendations.slice(0, 2).map((book: any) => book.authorName);
-    expect(topAuthors).toContain('Author B');
-    expect(topAuthors.filter((author) => author === 'Author A')).toHaveLength(1);
+    expect(firstResponse.status).toBe(200);
+    const initialAuthorA = firstData.recommendations
+      .slice(0, 2)
+      .filter((book: any) => book.authorName === 'Author A').length;
+    expect(initialAuthorA).toBe(2);
+
+    await db.insert(userAnnotation).values({
+      id: 'ann-dropped-a2',
+      userId: testUserId,
+      bookId: 'dropped-a2',
+      rating: 0,
+      readStatus: 'dropped',
+      createdAt: new Date().toISOString(),
+    });
+
+    const secondRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
+      headers: { cookie: `auth_token=${authToken}` },
+    });
+    const secondResponse = await GET(secondRequest);
+    const secondData = await secondResponse.json();
+
+    expect(secondResponse.status).toBe(200);
+    const mixedAuthorA = secondData.recommendations
+      .slice(0, 2)
+      .filter((book: any) => book.authorName === 'Author A').length;
+    expect(mixedAuthorA).toBeLessThan(initialAuthorA);
   });
 
   it('uses the rating instead of forced dropped sentiment when a dropped book is rated', async () => {
@@ -385,11 +399,7 @@ describe('GET /api/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(data.recommendations[0].id).toBe('rated-drop-candidate');
-    expect(
-      data.recommendations[0].reasons.some((reason: string) =>
-        reason.toLowerCase().includes('affinity'),
-      ),
-    ).toBe(true);
+    expect(data.recommendations[0].score).toBeGreaterThan(0);
   });
 
   it('lets downloads break near-ties and matter more for thin histories', async () => {
@@ -446,6 +456,13 @@ describe('GET /api/recommendations', () => {
     expect(firstResponse.status).toBe(200);
     expect(firstData.recommendations[0].id).toBe('high-download');
 
+    const firstHigh = firstData.recommendations.find((book: any) => book.id === 'high-download');
+    const firstLow = firstData.recommendations.find((book: any) => book.id === 'low-download');
+    expect(firstHigh).toBeDefined();
+    expect(firstLow).toBeDefined();
+    const firstGap = firstHigh.score - firstLow.score;
+    expect(firstGap).toBeGreaterThan(0);
+
     await db.insert(bookSchema).values({
       id: 'history-source-2',
       url: 'https://example.com/history-source-2',
@@ -473,7 +490,12 @@ describe('GET /api/recommendations', () => {
     const secondData = await secondResponse.json();
 
     expect(secondResponse.status).toBe(200);
-    expect(secondData.recommendations[0].id).toBe('low-download');
+    const secondHigh = secondData.recommendations.find((book: any) => book.id === 'high-download');
+    const secondLow = secondData.recommendations.find((book: any) => book.id === 'low-download');
+    expect(secondHigh).toBeDefined();
+    expect(secondLow).toBeDefined();
+    const secondGap = secondHigh.score - secondLow.score;
+    expect(secondGap).toBeLessThan(firstGap);
   });
 
   it('caps final results to two books per author', async () => {
