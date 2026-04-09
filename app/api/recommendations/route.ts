@@ -418,6 +418,12 @@ export async function GET(req: NextRequest) {
 
       return NextResponse.json({
         recommendations: scoredBooks,
+        preferences: {
+          likedGenres: [],
+          likedAuthors: [],
+          likedPerformers: [],
+          totalLiked: 'No ratings yet',
+        },
         message: 'No preferences yet. Showing popular books.',
         reason: 'popular',
       });
