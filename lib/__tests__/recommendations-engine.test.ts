@@ -1,11 +1,8 @@
-import { GET } from '../recommendations/route';
 import { initDatabase, closeDatabase, getAppDbAsync, book as bookSchema, userAnnotation, user } from '@/db/index';
-import { NextRequest } from 'next/server';
-import { createSessionToken } from '@/lib/auth';
+import { getRecommendationsForUser } from '../recommendations';
 
-describe('GET /api/recommendations', () => {
+describe('getRecommendationsForUser', () => {
   let testUserId: string;
-  let authToken: string;
 
   beforeAll(async () => {
     // Initialize in-memory test database
@@ -31,9 +28,6 @@ describe('GET /api/recommendations', () => {
       email: 'test@example.com',
       createdAt: new Date().toISOString(),
     });
-
-    // Generate auth token
-    authToken = createSessionToken(testUserId, 'test@example.com');
   });
 
   it('should exclude annotated books from recommendations', async () => {
@@ -92,16 +86,8 @@ describe('GET /api/recommendations', () => {
       },
     ]);
 
-    // Request recommendations
-    const request = new NextRequest('http://localhost:3000/api/recommendations', {
-      headers: {
-        cookie: `auth_token=${authToken}`,
-      },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId);
 
-    expect(response.status).toBe(200);
     expect(data.recommendations).toHaveLength(1);
     expect(data.recommendations[0].id).toBe('book-3');
     expect(data.recommendations[0].title).toBe('Popular Book 3');
@@ -178,16 +164,8 @@ describe('GET /api/recommendations', () => {
       },
     ]);
 
-    // Request recommendations
-    const request = new NextRequest('http://localhost:3000/api/recommendations', {
-      headers: {
-        cookie: `auth_token=${authToken}`,
-      },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId);
 
-    expect(response.status).toBe(200);
     expect(data.recommendations).toHaveLength(1);
     expect(data.recommendations[0].id).toBe('book-new');
   });
@@ -236,16 +214,8 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    // Request recommendations
-    const request = new NextRequest('http://localhost:3000/api/recommendations', {
-      headers: {
-        cookie: `auth_token=${authToken}`,
-      },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId);
 
-    expect(response.status).toBe(200);
     expect(data.reason).toBe('popular');
     // Should not include the annotated book
     expect(data.recommendations.map((b: any) => b.id)).not.toContain('most-popular');
@@ -300,13 +270,8 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId, { limit: 2 });
 
-    expect(response.status).toBe(200);
     expect(data.reason).toBe('hybrid-scoring');
     expect(data.recommendations[0].id).toBe('neutral-candidate');
   });
@@ -378,13 +343,7 @@ describe('GET /api/recommendations', () => {
       },
     ]);
 
-    const firstRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const firstResponse = await GET(firstRequest);
-    const firstData = await firstResponse.json();
-
-    expect(firstResponse.status).toBe(200);
+    const firstData = await getRecommendationsForUser(db, testUserId, { limit: 2 });
     const initialAuthorA = firstData.recommendations
       .slice(0, 2)
       .filter((book: any) => book.authorName === 'Author A').length;
@@ -399,13 +358,7 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const secondRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const secondResponse = await GET(secondRequest);
-    const secondData = await secondResponse.json();
-
-    expect(secondResponse.status).toBe(200);
+    const secondData = await getRecommendationsForUser(db, testUserId, { limit: 2 });
     const mixedAuthorA = secondData.recommendations
       .slice(0, 2)
       .filter((book: any) => book.authorName === 'Author A').length;
@@ -459,13 +412,8 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId, { limit: 2 });
 
-    expect(response.status).toBe(200);
     expect(data.recommendations[0].id).toBe('rated-drop-candidate');
     expect(data.recommendations[0].score).toBeGreaterThan(0);
     const rankedIds = data.recommendations.map((book: any) => book.id);
@@ -519,19 +467,16 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const firstRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const firstResponse = await GET(firstRequest);
-    const firstData = await firstResponse.json();
-
-    expect(firstResponse.status).toBe(200);
+    const firstData = await getRecommendationsForUser(db, testUserId, { limit: 2 });
     expect(firstData.recommendations[0].id).toBe('high-download');
 
     const firstHigh = firstData.recommendations.find((book: any) => book.id === 'high-download');
     const firstLow = firstData.recommendations.find((book: any) => book.id === 'low-download');
     expect(firstHigh).toBeDefined();
     expect(firstLow).toBeDefined();
+    if (!firstHigh || !firstLow) {
+      throw new Error('Expected both thin-history candidates to be recommended');
+    }
     const firstGap = firstHigh.score - firstLow.score;
     expect(firstGap).toBeGreaterThan(0);
 
@@ -555,17 +500,14 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const secondRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const secondResponse = await GET(secondRequest);
-    const secondData = await secondResponse.json();
-
-    expect(secondResponse.status).toBe(200);
+    const secondData = await getRecommendationsForUser(db, testUserId, { limit: 2 });
     const secondHigh = secondData.recommendations.find((book: any) => book.id === 'high-download');
     const secondLow = secondData.recommendations.find((book: any) => book.id === 'low-download');
     expect(secondHigh).toBeDefined();
     expect(secondLow).toBeDefined();
+    if (!secondHigh || !secondLow) {
+      throw new Error('Expected both richer-history candidates to be recommended');
+    }
     const secondGap = secondHigh.score - secondLow.score;
     expect(secondGap).toBeLessThan(firstGap);
   });
@@ -645,25 +587,11 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=4', {
-      headers: { cookie: `auth_token=${authToken}` },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId, { limit: 4 });
 
-    expect(response.status).toBe(200);
     const authorNames = data.recommendations.map((book: any) => book.authorName);
     expect(authorNames.filter((author: string) => author === 'Author A')).toHaveLength(2);
     expect(authorNames).toContain('Author C');
-  });
-
-  it('should return 401 when not authenticated', async () => {
-    const request = new NextRequest('http://localhost:3000/api/recommendations');
-    const response = await GET(request);
-    
-    expect(response.status).toBe(401);
-    const data = await response.json();
-    expect(data.error).toBe('Authentication required');
   });
 
   it('should return empty array when all books are annotated', async () => {
@@ -711,16 +639,8 @@ describe('GET /api/recommendations', () => {
       },
     ]);
 
-    // Request recommendations
-    const request = new NextRequest('http://localhost:3000/api/recommendations', {
-      headers: {
-        cookie: `auth_token=${authToken}`,
-      },
-    });
-    const response = await GET(request);
-    const data = await response.json();
+    const data = await getRecommendationsForUser(db, testUserId);
 
-    expect(response.status).toBe(200);
     expect(data.recommendations).toHaveLength(0);
   });
 });
