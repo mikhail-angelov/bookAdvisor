@@ -393,7 +393,7 @@ export async function GET(req: NextRequest) {
     const excludeIds = allUserAnnotations.map((r: { bookId: string }) => r.bookId);
 
     // If no preferences yet, return popular books (excluding annotated ones)
-    if (prefs.likedGenres.length === 0 && prefs.likedAuthors.length === 0) {
+    if (prefs.totalSignals === 0) {
       // Return popular books as default recommendations, excluding annotated books
       let popularBooks = await db
         .select()

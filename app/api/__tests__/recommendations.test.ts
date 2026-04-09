@@ -226,13 +226,13 @@ describe('GET /api/recommendations', () => {
       },
     ]);
 
-    // User has annotated the most popular book (but no rating >= 4, so no preferences)
+    // User has annotated the most popular book with no sentiment signal
     await db.insert(userAnnotation).values({
       id: 'ann-1',
       userId: testUserId,
       bookId: 'most-popular',
-      rating: 2, // Low rating, so no preferences derived
-      readStatus: 'read',
+      rating: 0,
+      readStatus: 'want_to_read',
       createdAt: new Date().toISOString(),
     });
 
@@ -255,7 +255,63 @@ describe('GET /api/recommendations', () => {
     );
   });
 
-  it('gives only a small author boost when the same author has mixed feedback', async () => {
+  it('does not use popularity fallback when only negative sentiment exists', async () => {
+    const db = await getAppDbAsync();
+
+    await db.insert(bookSchema).values([
+      {
+        id: 'neg-source',
+        url: 'https://example.com/neg-source',
+        title: 'Negative Source',
+        authorName: 'Author A',
+        genre: 'Horror',
+        category: 'Horror',
+        downloads: 20,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'neg-candidate',
+        url: 'https://example.com/neg-candidate',
+        title: 'Negative Author Candidate',
+        authorName: 'Author A',
+        genre: 'Horror',
+        category: 'Horror',
+        downloads: 200,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'neutral-candidate',
+        url: 'https://example.com/neutral-candidate',
+        title: 'Neutral Author Candidate',
+        authorName: 'Author B',
+        genre: 'Horror',
+        category: 'Horror',
+        downloads: 200,
+        createdAt: new Date().toISOString(),
+      },
+    ]);
+
+    await db.insert(userAnnotation).values({
+      id: 'ann-neg-source',
+      userId: testUserId,
+      bookId: 'neg-source',
+      rating: 0,
+      readStatus: 'dropped',
+      createdAt: new Date().toISOString(),
+    });
+
+    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
+      headers: { cookie: `auth_token=${authToken}` },
+    });
+    const response = await GET(request);
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.reason).toBe('hybrid-scoring');
+    expect(data.recommendations[0].id).toBe('neutral-candidate');
+  });
+
+  it('keeps mixed-feedback authors neutral until diversity capping is applied', async () => {
     const db = await getAppDbAsync();
 
     await db.insert(bookSchema).values([
@@ -353,7 +409,9 @@ describe('GET /api/recommendations', () => {
     const mixedAuthorA = secondData.recommendations
       .slice(0, 2)
       .filter((book: any) => book.authorName === 'Author A').length;
-    expect(mixedAuthorA).toBeLessThan(initialAuthorA);
+
+    // Mixed author sentiment stays neutral until the final diversity cap is applied.
+    expect(mixedAuthorA).toBe(initialAuthorA);
   });
 
   it('uses the rating instead of forced dropped sentiment when a dropped book is rated', async () => {
