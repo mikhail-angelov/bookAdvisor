@@ -5,6 +5,7 @@ import { eq, and, desc, inArray, like, notInArray, or } from 'drizzle-orm';
 // import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
 import { verifySessionToken } from '@/lib/auth';
 import {
+  applyAuthorDiversityCap,
   getAuthorAffinityBand,
   getPopularityWeightMultiplier,
   toAuthorSentiment,
@@ -498,16 +499,14 @@ export async function GET(req: NextRequest) {
     const allBooks = await getHybridCandidates(db, prefs, excludeIds, limit);
 
     // Score each book
-    const scoredBooks = allBooks.map(b => {
-      const { score, reasons } = calculateScore(b, prefs, DEFAULT_WEIGHTS);
-      return { ...b, score, reasons };
-    });
+    const scoredBooks = allBooks
+      .map((currentBook) => {
+        const { score, reasons } = calculateScore(currentBook, prefs, DEFAULT_WEIGHTS);
+        return { ...currentBook, score, reasons };
+      })
+      .sort((a, b) => b.score - a.score);
 
-    // Sort by score descending
-    scoredBooks.sort((a, b) => b.score - a.score);
-
-    // Take top recommendations
-    const recommendations = scoredBooks.slice(0, limit);
+    const recommendations = applyAuthorDiversityCap(scoredBooks, limit, 2);
 
     return NextResponse.json({
       recommendations,

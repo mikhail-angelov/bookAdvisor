@@ -653,7 +653,7 @@ describe('GET /api/recommendations', () => {
 
     expect(response.status).toBe(200);
     const authorNames = data.recommendations.map((book: any) => book.authorName);
-    expect(authorNames.filter((author) => author === 'Author A')).toHaveLength(2);
+    expect(authorNames.filter((author: string) => author === 'Author A')).toHaveLength(2);
     expect(authorNames).toContain('Author C');
   });
 
