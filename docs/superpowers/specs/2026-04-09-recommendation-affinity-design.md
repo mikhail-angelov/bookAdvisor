@@ -134,6 +134,12 @@ This changes author from a dominant retrieval axis into a secondary retrieval ax
 
 Apply a post-ranking author diversity pass before returning results.
 
+Implementation sequencing:
+
+- author-affinity scoring and limited author seeding land before this pass
+- the final diversity cap is a follow-up step and is not required for the first scoring rollout
+- until that pass lands, mixed and neutral authors may still repeat in the ranked output
+
 Behavior:
 
 - rank books by total score as usual
@@ -179,7 +185,7 @@ Required coverage:
 - downloads contribute a small ranking boost without dominating the list
 - downloads matter slightly more when the user profile is thin
 - strongly negative authors do not dominate candidate selection
-- final recommendations are diversified so one author cannot fill the list
+- final recommendations are diversified so one author cannot fill the list once the diversity-cap step is added
 - existing annotated-book exclusion behavior still passes
 
 ## Implementation Notes
