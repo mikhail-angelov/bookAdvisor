@@ -224,8 +224,6 @@ function calculateScore(
   } else if (affinityBand === 'mixed') {
     authorScore = 0.25;
     reasons.push('Author affinity: mixed');
-  } else if (affinityBand === 'neutral' && affinity?.dropCount) {
-    authorScore = -0.05;
   } else if (affinityBand === 'negative') {
     authorScore = -0.15;
   }
