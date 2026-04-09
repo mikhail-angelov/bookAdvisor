@@ -1,8 +1,10 @@
-export type AffinityBand = 'positive' | 'mixed' | 'negative';
+export type AffinityBand = 'positive' | 'mixed' | 'neutral' | 'negative';
 
 export interface AuthorAffinityStats {
   interactionCount: number;
   netSentiment: number;
+  avgSentiment: number;
+  dropCount: number;
 }
 
 export function toAuthorSentiment(annotation: { rating: number; readStatus: string | null }): number | null {
@@ -21,8 +23,9 @@ export function getAuthorAffinityBand(stats: Pick<AuthorAffinityStats, 'netSenti
   const avg = stats.interactionCount > 0 ? stats.netSentiment / stats.interactionCount : 0;
 
   if (avg >= 1.25) return 'positive';
-  if (avg > -1) return 'mixed';
-  return 'negative';
+  if (avg > 0) return 'mixed';
+  if (avg <= -1) return 'negative';
+  return 'neutral';
 }
 
 export function getPopularityWeightMultiplier(totalSignals: number): number {

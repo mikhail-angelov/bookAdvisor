@@ -24,8 +24,8 @@ This design keeps authors relevant while making genre, performer, popularity, an
 - Author preference must consider all reviews for that author, not only positive ratings.
 - Negative ratings must reduce author affinity.
 - Dropped books must reduce author affinity.
-- If `readStatus=drop` and no rating is set, count that interaction as `-2`.
-- If `readStatus=drop` and a rating is set, use the rating-derived sentiment instead of forcing `-2`.
+- If `readStatus=dropped` and no rating is set, count that interaction as `-2`.
+- If `readStatus=dropped` and a rating is set, use the rating-derived sentiment instead of forcing `-2`.
 - Mixed-sentiment authors must remain eligible for a small positive author boost.
 - Recommendations should aim for a mix of familiar authors and discovery.
 - Download count must remain a ranking factor, but only a modest one.
@@ -67,12 +67,12 @@ Proposed mapping:
 - rating `3` -> `0`
 - rating `2` -> `-1`
 - rating `1` -> `-2`
-- `readStatus=drop` with no rating -> `-2`
+- `readStatus=dropped` with no rating -> `-2`
 
 Rules:
 
 - If a rating exists, derive sentiment from the rating.
-- If no rating exists and `readStatus=drop`, use `-2`.
+- If no rating exists and `readStatus=dropped`, use `-2`.
 - Non-dropped unrated annotations do not contribute to author sentiment.
 
 This keeps the author model centered on explicit user feedback while still treating an unrated drop as a clear negative signal.

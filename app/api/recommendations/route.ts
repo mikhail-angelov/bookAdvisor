@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
-import { eq, and, sql, desc, inArray, like, notInArray, or } from 'drizzle-orm';
+import { eq, and, desc, inArray, like, notInArray, or } from 'drizzle-orm';
 // import { searchSimilar, retrieveVectors } from '@/lib/qdrant';
 import { verifySessionToken } from '@/lib/auth';
+import {
+  getAuthorAffinityBand,
+  getPopularityWeightMultiplier,
+  toAuthorSentiment,
+  type AuthorAffinityStats,
+} from '@/lib/recommendations';
 
 /**
  * Recommendation Scoring Algorithm
@@ -15,12 +21,12 @@ import { verifySessionToken } from '@/lib/auth';
 
 // Default weights for scoring
 const DEFAULT_WEIGHTS = {
-  genre: 0.25,
-  author: 0.20,
-  performer: 0.15,
-  performance: 0.15,
-  popularity: 0.15,
-  recency: 0.10,
+  genre: 0.28,
+  author: 0.10,
+  performer: 0.16,
+  performance: 0.14,
+  popularity: 0.18,
+  recency: 0.14,
 };
 
 interface UserPreferences {
@@ -30,6 +36,8 @@ interface UserPreferences {
   highPerformancePerformers: string[];
   avgRating: number;
   avgPerformanceRating: number;
+  totalSignals: number;
+  authorAffinity: Map<string, AuthorAffinityStats>;
 }
 
 /**
@@ -47,17 +55,13 @@ function extractGenres(genreStr: string | null): string[] {
  * Get user's preferences based on their ratings
  */
 async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends Promise<infer T> ? T : never, userId: string): Promise<UserPreferences> {
-  // Get all annotations with positive ratings (4-5 stars = liked)
-  const userRatings = await db
+  const allAnnotations = await db
     .select()
     .from(userAnnotation)
-    .where(and(
-      eq(userAnnotation.userId, userId),
-      sql`${userAnnotation.rating} >= 4`
-    ))
+    .where(eq(userAnnotation.userId, userId))
     .all() as UserAnnotation[];
 
-  if (userRatings.length === 0) {
+  if (allAnnotations.length === 0) {
     return {
       likedGenres: [],
       likedAuthors: [],
@@ -65,11 +69,14 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
       highPerformancePerformers: [],
       avgRating: 0,
       avgPerformanceRating: 0,
+      totalSignals: 0,
+      authorAffinity: new Map(),
     };
   }
 
-  // Get book details for rated books
-  const bookIds = userRatings.map((r: UserAnnotation) => r.bookId);
+  const positiveRatings = allAnnotations.filter((annotation) => annotation.rating >= 4);
+
+  const bookIds = allAnnotations.map((annotation) => annotation.bookId);
   if (bookIds.length === 0) {
     return {
       likedGenres: [],
@@ -78,6 +85,8 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
       highPerformancePerformers: [],
       avgRating: 0,
       avgPerformanceRating: 0,
+      totalSignals: 0,
+      authorAffinity: new Map(),
     };
   }
 
@@ -87,57 +96,73 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
     .where(inArray(book.id, bookIds))
     .all() as Book[];
 
-  // Create a map for quick lookup using books that match our rated book IDs
-  const bookMap = new Map<string, Book>();
-  for (const b of books) {
-    if (bookIds.includes(b.id)) {
-      bookMap.set(b.id, b);
+  const bookMap = new Map<string, Book>(books.map((item) => [item.id, item]));
+  const authorAffinity = new Map<string, AuthorAffinityStats>();
+  let totalSignals = 0;
+
+  for (const annotation of allAnnotations) {
+    const sentiment = toAuthorSentiment(annotation);
+    if (sentiment === null) {
+      continue;
     }
+
+    totalSignals += 1;
+
+    const currentBook = bookMap.get(annotation.bookId);
+    if (!currentBook?.authorName) continue;
+
+    const author = currentBook.authorName.toLowerCase().trim();
+    if (!author || author === 'unknown') continue;
+
+    const stats = authorAffinity.get(author) ?? {
+      interactionCount: 0,
+      netSentiment: 0,
+      avgSentiment: 0,
+      dropCount: 0,
+    };
+
+    if (annotation.readStatus === 'dropped') {
+      stats.dropCount += 1;
+    }
+
+    stats.interactionCount += 1;
+    stats.netSentiment += sentiment;
+    stats.avgSentiment = stats.netSentiment / stats.interactionCount;
+
+    authorAffinity.set(author, stats);
   }
 
   // Aggregate preferences
   const genreCounts = new Map<string, number>();
-  const authorCounts = new Map<string, number>();
   const performerCounts = new Map<string, number>();
   const highPerfCounts = new Map<string, number>();
   let totalRating = 0;
   let totalPerfRating = 0;
   let perfCount = 0;
 
-  for (const rating of userRatings) {
-    const b = bookMap.get(rating.bookId);
-    if (!b) continue;
+  for (const rating of positiveRatings) {
+    const currentBook = bookMap.get(rating.bookId);
+    if (!currentBook) continue;
 
     totalRating += rating.rating;
 
-    // Count genres (weighted by rating)
-    const genres = extractGenres(b.genre);
+    const genres = extractGenres(currentBook.genre);
     for (const g of genres) {
       genreCounts.set(g, (genreCounts.get(g) || 0) + rating.rating);
     }
 
-    // Count authors (weighted by rating)
-    if (b.authorName) {
-      const author = b.authorName.toLowerCase().trim();
-      if (author && author !== 'unknown') {
-        authorCounts.set(author, (authorCounts.get(author) || 0) + rating.rating);
-      }
-    }
-
-    // Count performers (weighted by rating)
-    if (b.performer) {
-      const performer = b.performer.toLowerCase().trim();
+    if (currentBook.performer) {
+      const performer = currentBook.performer.toLowerCase().trim();
       if (performer && performer !== 'unknown') {
         performerCounts.set(performer, (performerCounts.get(performer) || 0) + rating.rating);
       }
     }
 
-    // Track high performance ratings (4-5 stars)
     if (rating.performanceRating && rating.performanceRating >= 4) {
       totalPerfRating += rating.performanceRating;
       perfCount++;
-      if (b.performer) {
-        const performer = b.performer.toLowerCase().trim();
+      if (currentBook.performer) {
+        const performer = currentBook.performer.toLowerCase().trim();
         if (performer && performer !== 'unknown') {
           highPerfCounts.set(performer, (highPerfCounts.get(performer) || 0) + rating.performanceRating);
         }
@@ -145,16 +170,22 @@ async function getUserPreferences(db: ReturnType<typeof getAppDbAsync> extends P
     }
   }
 
-  // Sort by count and take top preferences
   const sortByCount = (a: [string, number], b: [string, number]) => b[1] - a[1];
-  
+  const likedAuthors = Array.from(authorAffinity.entries())
+    .filter(([, stats]) => getAuthorAffinityBand(stats) !== 'negative')
+    .sort((a, b) => b[1].netSentiment - a[1].netSentiment)
+    .slice(0, 10)
+    .map(([author]) => author);
+
   return {
     likedGenres: Array.from(genreCounts.entries()).sort(sortByCount).slice(0, 10).map(([g]) => g),
-    likedAuthors: Array.from(authorCounts.entries()).sort(sortByCount).slice(0, 10).map(([a]) => a),
+    likedAuthors,
     likedPerformers: Array.from(performerCounts.entries()).sort(sortByCount).slice(0, 10).map(([p]) => p),
     highPerformancePerformers: Array.from(highPerfCounts.entries()).sort(sortByCount).slice(0, 10).map(([p]) => p),
-    avgRating: totalRating / userRatings.length,
+    avgRating: positiveRatings.length > 0 ? totalRating / positiveRatings.length : 0,
     avgPerformanceRating: perfCount > 0 ? totalPerfRating / perfCount : 0,
+    totalSignals,
+    authorAffinity,
   };
 }
 
@@ -182,13 +213,21 @@ function calculateScore(
     }
   }
 
-  // Author match (20%)
-  if (book.authorName && prefs.likedAuthors.length > 0) {
-    const author = book.authorName.toLowerCase().trim();
-    if (prefs.likedAuthors.includes(author)) {
-      authorScore = 1;
-      reasons.push(`Author: ${book.authorName}`);
-    }
+  const affinity = book.authorName
+    ? prefs.authorAffinity.get(book.authorName.toLowerCase().trim())
+    : undefined;
+  const affinityBand = affinity ? getAuthorAffinityBand(affinity) : 'neutral';
+
+  if (affinityBand === 'positive') {
+    authorScore = 0.7;
+    reasons.push('Author affinity: positive');
+  } else if (affinityBand === 'mixed') {
+    authorScore = 0.25;
+    reasons.push('Author affinity: mixed');
+  } else if (affinityBand === 'neutral' && affinity?.dropCount) {
+    authorScore = -0.05;
+  } else if (affinityBand === 'negative') {
+    authorScore = -0.15;
   }
 
   // Performer match (15%)
@@ -211,7 +250,8 @@ function calculateScore(
 
   // Popularity score (15%) - normalize downloads to 0-1
   const maxDownloads = 50000; // approximate max
-  const popularityScore = Math.min((book.downloads || 0) / maxDownloads, 1);
+  const popularityMultiplier = getPopularityWeightMultiplier(prefs.totalSignals);
+  const popularityScore = Math.min((book.downloads || 0) / maxDownloads, 1) * popularityMultiplier;
 
   // Recency score (10%) - based on year or last comment
   let recencyScore = 0;
@@ -223,7 +263,11 @@ function calculateScore(
     recencyScore = Math.max(0, Math.min((commentYear - 2000) / (currentYear - 2000), 1));
   }
 
-  const totalScore = 
+  if (popularityScore >= 0.1) {
+    reasons.push('Popular with readers');
+  }
+
+  const totalScore =
     (genreScore * weights.genre) +
     (authorScore * weights.author) +
     (performerScore * weights.performer) +
@@ -251,16 +295,22 @@ async function getHybridCandidates(
   const targetLimit = Math.max(limit * 10, 100);
   const seen = new Map<string, Book>();
   const baseFilters = excludeIds.length > 0 ? [notInArray(book.id, excludeIds)] : [];
+  const authorSeeds = prefs.likedAuthors
+    .filter((author) => {
+      const stats = prefs.authorAffinity.get(author);
+      return stats ? getAuthorAffinityBand(stats) !== 'negative' : false;
+    })
+    .slice(0, 2)
+    .flatMap((author) => caseVariants(author).map((variant) => like(book.authorName, `%${variant}%`)));
+
   const preferenceFilters = [
-    ...prefs.likedAuthors.slice(0, 5).flatMap((author) =>
-      caseVariants(author).map((variant) => like(book.authorName, `%${variant}%`)),
-    ),
     ...prefs.likedPerformers.slice(0, 5).flatMap((performer) =>
       caseVariants(performer).map((variant) => like(book.performer, `%${variant}%`)),
     ),
     ...prefs.likedGenres.slice(0, 8).flatMap((genre) =>
       caseVariants(genre).map((variant) => like(book.genre, `%${variant}%`)),
     ),
+    ...authorSeeds,
   ];
 
   if (preferenceFilters.length > 0) {
