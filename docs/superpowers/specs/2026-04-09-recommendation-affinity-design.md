@@ -28,6 +28,8 @@ This design keeps authors relevant while making genre, performer, popularity, an
 - If `readStatus=drop` and a rating is set, use the rating-derived sentiment instead of forcing `-2`.
 - Mixed-sentiment authors must remain eligible for a small positive author boost.
 - Recommendations should aim for a mix of familiar authors and discovery.
+- Download count must remain a ranking factor, but only a modest one.
+- Download count should matter slightly more when the user has thin history.
 - API response shape should remain stable for the existing recommendations page.
 - Existing exclusion rules for annotated books must continue to hold.
 
@@ -109,6 +111,8 @@ New behavior:
 - apply a modest positive score for strongly positive authors
 - apply a small positive score for mixed authors
 - apply zero or a small negative score for clearly negative authors
+- keep downloads as a low-weight popularity signal so broadly validated books can rise slightly
+- when the user has thin history, allow downloads to matter a bit more than in a mature profile
 
 The recommendation weights after this change should continue to favor shared genre and other metadata over exact author repetition.
 
@@ -150,7 +154,7 @@ Behavior:
 
 - if there is no usable preference history, continue using popular fallback excluding annotated books
 - once annotation history exists, include negative author sentiment in the model even if positive signals are sparse
-- when history is thin, popularity and genre should carry more of the ranking than author affinity
+- when history is thin, popularity from downloads and genre should carry more of the ranking than author affinity
 
 ## API Compatibility
 
@@ -172,6 +176,8 @@ Required coverage:
 - an unrated dropped book contributes `-2` author sentiment
 - a rated dropped book uses rating-derived sentiment instead of forced `-2`
 - mixed-feedback authors receive only a small boost
+- downloads contribute a small ranking boost without dominating the list
+- downloads matter slightly more when the user profile is thin
 - strongly negative authors do not dominate candidate selection
 - final recommendations are diversified so one author cannot fill the list
 - existing annotated-book exclusion behavior still passes
@@ -208,4 +214,5 @@ Expected user-visible outcome:
 - fewer recommendation lists dominated by one author
 - mixed authors still appear sometimes
 - disliked or repeatedly dropped authors appear less often
+- more-downloaded books get a mild advantage, especially for sparse profiles
 - recommendations feel broader without becoming random
