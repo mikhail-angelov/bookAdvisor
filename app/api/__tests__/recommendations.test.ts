@@ -380,6 +380,16 @@ describe('GET /api/recommendations', () => {
         downloads: 35,
         createdAt: new Date().toISOString(),
       },
+      {
+        id: 'rated-drop-competitor',
+        url: 'https://example.com/rated-drop-competitor',
+        title: 'Rated Drop Competitor',
+        authorName: 'Another Author',
+        genre: 'Mystery',
+        category: 'Mystery',
+        downloads: 45,
+        createdAt: new Date().toISOString(),
+      },
     ]);
 
     await db.insert(userAnnotation).values({
@@ -391,7 +401,7 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=1', {
+    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
       headers: { cookie: `auth_token=${authToken}` },
     });
     const response = await GET(request);
@@ -400,6 +410,10 @@ describe('GET /api/recommendations', () => {
     expect(response.status).toBe(200);
     expect(data.recommendations[0].id).toBe('rated-drop-candidate');
     expect(data.recommendations[0].score).toBeGreaterThan(0);
+    const rankedIds = data.recommendations.map((book: any) => book.id);
+    expect(rankedIds.indexOf('rated-drop-candidate')).toBeLessThan(
+      rankedIds.indexOf('rated-drop-competitor'),
+    );
   });
 
   it('lets downloads break near-ties and matter more for thin histories', async () => {
