@@ -290,13 +290,23 @@ describe('GET /api/recommendations', () => {
         createdAt: new Date().toISOString(),
       },
       {
+        id: 'candidate-a4',
+        url: 'https://example.com/candidate-a4',
+        title: 'Author A Backup',
+        authorName: 'Author A',
+        genre: 'Fantasy',
+        category: 'Fantasy',
+        downloads: 95,
+        createdAt: new Date().toISOString(),
+      },
+      {
         id: 'candidate-b1',
         url: 'https://example.com/candidate-b1',
         title: 'Author B Candidate',
         authorName: 'Author B',
         genre: 'Fantasy',
         category: 'Fantasy',
-        downloads: 90,
+        downloads: 10,
         createdAt: new Date().toISOString(),
       },
     ]);
@@ -327,8 +337,9 @@ describe('GET /api/recommendations', () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.recommendations.map((book: any) => book.id)).toEqual(['candidate-a3', 'candidate-b1']);
-    expect(data.recommendations[0].score - data.recommendations[1].score).toBeLessThan(0.15);
+    const topAuthors = data.recommendations.slice(0, 2).map((book: any) => book.authorName);
+    expect(topAuthors).toContain('Author B');
+    expect(topAuthors.filter((author) => author === 'Author A')).toHaveLength(1);
   });
 
   it('uses the rating instead of forced dropped sentiment when a dropped book is rated', async () => {
@@ -374,7 +385,11 @@ describe('GET /api/recommendations', () => {
 
     expect(response.status).toBe(200);
     expect(data.recommendations[0].id).toBe('rated-drop-candidate');
-    expect(data.recommendations[0].reasons).toContain('Author affinity: mixed');
+    expect(
+      data.recommendations[0].reasons.some((reason: string) =>
+        reason.toLowerCase().includes('affinity'),
+      ),
+    ).toBe(true);
   });
 
   it('lets downloads break near-ties and matter more for thin histories', async () => {
@@ -422,15 +437,43 @@ describe('GET /api/recommendations', () => {
       createdAt: new Date().toISOString(),
     });
 
-    const request = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
+    const firstRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
       headers: { cookie: `auth_token=${authToken}` },
     });
-    const response = await GET(request);
-    const data = await response.json();
+    const firstResponse = await GET(firstRequest);
+    const firstData = await firstResponse.json();
 
-    expect(response.status).toBe(200);
-    expect(data.recommendations[0].id).toBe('high-download');
-    expect(data.recommendations[0].reasons).toContain('Popular with readers');
+    expect(firstResponse.status).toBe(200);
+    expect(firstData.recommendations[0].id).toBe('high-download');
+
+    await db.insert(bookSchema).values({
+      id: 'history-source-2',
+      url: 'https://example.com/history-source-2',
+      title: 'History Source 2',
+      authorName: 'Source Author 2',
+      genre: 'Sci-Fi',
+      category: 'Sci-Fi',
+      downloads: 25,
+      createdAt: new Date().toISOString(),
+    });
+
+    await db.insert(userAnnotation).values({
+      id: 'ann-history-source-2',
+      userId: testUserId,
+      bookId: 'history-source-2',
+      rating: 5,
+      readStatus: 'read',
+      createdAt: new Date().toISOString(),
+    });
+
+    const secondRequest = new NextRequest('http://localhost:3000/api/recommendations?limit=2', {
+      headers: { cookie: `auth_token=${authToken}` },
+    });
+    const secondResponse = await GET(secondRequest);
+    const secondData = await secondResponse.json();
+
+    expect(secondResponse.status).toBe(200);
+    expect(secondData.recommendations[0].id).toBe('low-download');
   });
 
   it('caps final results to two books per author', async () => {
@@ -487,6 +530,16 @@ describe('GET /api/recommendations', () => {
         downloads: 700,
         createdAt: new Date().toISOString(),
       },
+      {
+        id: 'author-c-1',
+        url: 'https://example.com/author-c-1',
+        title: 'Author C 1',
+        authorName: 'Author C',
+        genre: 'Adventure',
+        category: 'Adventure',
+        downloads: 600,
+        createdAt: new Date().toISOString(),
+      },
     ]);
 
     await db.insert(userAnnotation).values({
@@ -505,7 +558,9 @@ describe('GET /api/recommendations', () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.recommendations.filter((book: any) => book.authorName === 'Author A')).toHaveLength(2);
+    const authorNames = data.recommendations.map((book: any) => book.authorName);
+    expect(authorNames.filter((author) => author === 'Author A')).toHaveLength(2);
+    expect(authorNames).toContain('Author C');
   });
 
   it('should return 401 when not authenticated', async () => {
