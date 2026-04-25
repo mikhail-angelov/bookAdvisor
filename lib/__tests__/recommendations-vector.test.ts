@@ -106,13 +106,15 @@ describe('recommendations-vector', () => {
       expect(result.reason).toBeDefined();
     });
 
-    it('should return empty array when user has no annotations', async () => {
-      const id1 = await insertBook({ title: 'Some Book', genre: 'Fiction' });
+    it('should fall back to popular books when user has no annotations', async () => {
+      const id1 = await insertBook({ title: 'Some Book', genre: 'Fiction', downloads: 500 });
       await storeEmbedding(id1, 'some book fiction');
 
       const db = await getAppDbAsync();
       const result: VectorResult = await getVectorRecommendationsForUser(db, userId, 5);
-      expect(result.recommendations).toEqual([]);
+      // No annotations → fallback to popular. Should still return something.
+      expect(result.recommendations.length).toBeGreaterThanOrEqual(1);
+      expect(result.reason).toContain('popular');
     });
 
     it('should exclude books already annotated', async () => {
