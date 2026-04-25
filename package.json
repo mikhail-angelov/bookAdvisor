@@ -14,7 +14,6 @@
     "test": "jest",
     "lint": "tsc --noEmit",
     "crawl": "tsx crawler/cli.ts",
-    "generate-embeddings:legacy": "tsx scripts/generateEmbeddings.ts",
     "generate-embeddings": "tsx scripts/generate-embeddings.ts",
     "init:crawl-db": "tsx scripts/init-crawl-db.ts"
   },
