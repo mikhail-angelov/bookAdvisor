@@ -23,10 +23,10 @@ deploy:
 migrate-remote:
 	@echo "Pulling remote production DB..."
 	mkdir -p ./tmp
-	scp root@$(HOST):/opt/bookAdviser/prod.db ./tmp/prod.remote.db
+	rsync root@$(HOST):/opt/bookAdviser/prod.db ./tmp/prod.remote.db
 	@echo "Applying Drizzle migrations locally..."
 	DB_URL=./tmp/prod.remote.db npm run migrate:run
 	@echo "Uploading migrated DB back to server..."
-	scp ./tmp/prod.remote.db root@$(HOST):/opt/bookAdviser/prod.db
-	rm -f ./tmp/prod.remote.db
+	rsync ./tmp/prod.remote.db root@$(HOST):/opt/bookAdviser/prod.db
+ 	rm -f ./tmp/prod.remote.db
 	@echo "Remote migration complete!"
