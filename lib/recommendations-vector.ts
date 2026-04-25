@@ -240,10 +240,10 @@ export async function getVectorRecommendationsForUser(
       .all() as Book[];
 
     const scored = popular
-      .filter(b => b.embedding && Buffer.isBuffer(b.embedding))
+      .filter((b): b is Book & { embedding: Buffer } => Buffer.isBuffer(b.embedding))
       .map(b => ({
         ...b,
-        similarity: cosineSimilarity(fallbackEmb, deserializeEmbedding(b.embedding!)),
+        similarity: cosineSimilarity(fallbackEmb, deserializeEmbedding(b.embedding)),
         score: 0,
         reasons: [] as string[],
       }))
@@ -277,7 +277,7 @@ export async function getVectorRecommendationsForUser(
     .all() as Book[];
 
   const scored = allBooks
-    .filter(b => b.embedding && Buffer.isBuffer(b.embedding) && !excludeIds.has(b.id))
+    .filter((b): b is Book & { embedding: Buffer } => Buffer.isBuffer(b.embedding) && !excludeIds.has(b.id))
     .map(b => {
       const { score, similarity, reasons } = vectorScore(b, profileEmb, prefs);
       return { ...b, score, similarity, reasons };
