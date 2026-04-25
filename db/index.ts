@@ -133,6 +133,8 @@ async function initProdDatabase(): Promise<void> {
 async function initTestDatabase(): Promise<void> {
   // Use in-memory database for tests
   appDbInstance = new Database(":memory:");
+  // Disable foreign keys for test isolation (avoids FK constraint failures on cleanup)
+  appDbInstance.pragma('foreign_keys = OFF');
   appDb = drizzle(appDbInstance, { schema: appSchema });
   migrate(appDb, { migrationsFolder: "./db/migrations" });
 

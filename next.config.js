@@ -3,7 +3,7 @@ const nextConfig = {
   reactStrictMode: true,
   // Configure dev server to ignore database files
   experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3', '@qdrant/js-client-rest'],
+    serverComponentsExternalPackages: ['better-sqlite3', '@qdrant/js-client-rest', '@xenova/transformers', 'onnxruntime-node'],
   },
   // Configure webpack to ignore database files in watch mode
   webpack: (config, { dev, isServer }) => {

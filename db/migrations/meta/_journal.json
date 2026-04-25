@@ -43,6 +43,13 @@
       "when": 1774084500000,
       "tag": "0005_swift_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1777101600000,
+      "tag": "0006_eager_spectrum",
+      "breakpoints": true
     }
   ]
 }
