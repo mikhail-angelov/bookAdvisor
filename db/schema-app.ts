@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, uniqueIndex, blob } from "drizzle-orm/sqlite-core";
 
 /**
  * Users table
@@ -37,6 +37,7 @@ export const book = sqliteTable("books", {
   duration: text("duration"),
   description: text("description"),
   imageUrl: text("image_url"),
+  embedding: blob("embedding"),
   createdAt: text("created_at"),
   updatedAt: text("updated_at"),
 }, (table) => {
@@ -72,6 +73,8 @@ export const userAnnotation = sqliteTable("user_annotations", {
 // Type exports for TypeScript
 export type User = typeof user.$inferSelect;
 export type NewUser = typeof user.$inferInsert;
+
+// Drizzle infers blob columns as `Buffer | null` in sqlite-core v0.45+
 export type Book = typeof book.$inferSelect;
 export type NewBook = typeof book.$inferInsert;
 export type UserAnnotation = typeof userAnnotation.$inferSelect;

@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAppDbAsync } from '@/db/index';
 import { verifySessionToken } from '@/lib/auth';
 import { getRecommendationsForUser } from '@/lib/recommendations';
+import { getVectorRecommendationsForUser } from '@/lib/recommendations-vector';
 
 export async function GET(req: NextRequest) {
   try {
     const searchParams = req.nextUrl.searchParams;
     const limit = parseInt(searchParams.get('limit') || '20');
+    const provider = searchParams.get('provider') || 'hybrid';
 
     let targetUserId: string | null = null;
     const token = req.cookies.get('auth_token')?.value;
@@ -27,6 +29,13 @@ export async function GET(req: NextRequest) {
     }
 
     const db = await getAppDbAsync();
+
+    if (provider === 'vector') {
+      const recommendations = await getVectorRecommendationsForUser(db, targetUserId, limit);
+      return NextResponse.json(recommendations);
+    }
+
+    // Default: hybrid (classic scoring engine)
     const recommendations = await getRecommendationsForUser(db, targetUserId, { limit });
 
     return NextResponse.json(recommendations);
