@@ -9,8 +9,10 @@
  */
 
 import { book, userAnnotation, type Book, type UserAnnotation } from '@/db/schema';
-import type { AppDb } from '@/db/index';
+import { getAppDbAsync } from '@/db/index';
 import { eq, inArray, desc } from 'drizzle-orm';
+
+type AppDb = Awaited<ReturnType<typeof getAppDbAsync>>;
 import { applyAuthorDiversityCap, extractGenres, getAuthorAffinityBand } from './recommendations';
 import {
   generateEmbedding,
@@ -107,7 +109,7 @@ async function getVectorPreferences(
   const likedAuthors = new Set<string>();
 
   for (const b of positive) {
-    if (b.embedding) {
+    if (b.embedding && Buffer.isBuffer(b.embedding)) {
       likedEmbeddings.push(deserializeEmbedding(b.embedding));
     }
     for (const g of extractGenres(b.genre)) likedGenres.add(g);
@@ -138,7 +140,7 @@ function vectorScore(
 ): { score: number; similarity: number; reasons: string[] } {
   const reasons: string[] = [];
 
-  if (!candidate.embedding) {
+  if (!candidate.embedding || !Buffer.isBuffer(candidate.embedding)) {
     return { score: 0, similarity: 0, reasons: ['No embedding'] };
   }
 
@@ -238,7 +240,7 @@ export async function getVectorRecommendationsForUser(
       .all() as Book[];
 
     const scored = popular
-      .filter(b => b.embedding)
+      .filter(b => b.embedding && Buffer.isBuffer(b.embedding))
       .map(b => ({
         ...b,
         similarity: cosineSimilarity(fallbackEmb, deserializeEmbedding(b.embedding!)),
@@ -275,7 +277,7 @@ export async function getVectorRecommendationsForUser(
     .all() as Book[];
 
   const scored = allBooks
-    .filter(b => b.embedding && !excludeIds.has(b.id))
+    .filter(b => b.embedding && Buffer.isBuffer(b.embedding) && !excludeIds.has(b.id))
     .map(b => {
       const { score, similarity, reasons } = vectorScore(b, profileEmb, prefs);
       return { ...b, score, similarity, reasons };
