@@ -28,5 +28,5 @@ migrate-remote:
 	DB_URL=./tmp/prod.remote.db npm run migrate:run
 	@echo "Uploading migrated DB back to server..."
 	rsync ./tmp/prod.remote.db root@$(HOST):/opt/bookAdviser/prod.db
- 	rm -f ./tmp/prod.remote.db
+	rm -f ./tmp/prod.remote.db
 	@echo "Remote migration complete!"
