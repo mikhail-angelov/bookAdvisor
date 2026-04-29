@@ -1,11 +1,43 @@
 version: '3.8'
 
 services:
+  traefik:
+    image: traefik:v3.3
+    container_name: traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--certificatesresolvers.letsencrypt.acme.email=mikhail.angelov@gmail.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
   app:
     image: ghcr.io/mikhail-angelov/bookadvisor:latest
     container_name: bookAdvisor
-    ports:
-      - "127.0.0.1:3010:3000"
+    expose:
+      - "3010"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`advisor.bconf.com`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
+      - "traefik.http.services.app.loadbalancer.server.port=3010"
     volumes:
       - ./prod.db:/app/data/prod.db
       - ./crawl.db:/app/data/crawl.db
@@ -18,6 +50,7 @@ services:
         max-size: "10m"
         max-file: "5"
     depends_on:
+      - traefik
       - qdrant
     command: npm start
 
@@ -48,6 +81,21 @@ services:
       - MONIC_CHECK_HTTP_METHOD=GET
       - MONIC_CHECK_HTTP_TIMEOUT=10
       - MONIC_CHECK_HTTP_EXPECTED_STATUS=200
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    ports:
+      - "127.0.0.1:8191:8191"
+    environment:
+      - LOG_LEVEL=info
+      - CAPTCHA_SOLVER=none
+    restart: unless-stopped
     logging:
       driver: "json-file"
       options:
