@@ -34,20 +34,29 @@ export class FlareClient {
     private timeoutMs: number = 60_000,
   ) {}
 
-  async solve(url: string, session?: string): Promise<FlareSolveResult> {
+  async solve(
+    url: string,
+    session?: string,
+    proxy?: { url: string },
+  ): Promise<FlareSolveResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const body: Record<string, unknown> = {
+        cmd: "request.get",
+        url,
+        maxTimeout: this.timeoutMs,
+      };
+      if (session) body.session = session;
+      // FlareSolverr supports per-request proxy in the request body.
+      // Format: { "url": "socks5://host:port" }
+      if (proxy) body.proxy = proxy;
+
       const res = await fetch(this.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          cmd: "request.get",
-          url,
-          maxTimeout: this.timeoutMs,
-          session,
-        }),
+        body: JSON.stringify(body),
         signal: controller.signal,
       });
 

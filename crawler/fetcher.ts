@@ -68,6 +68,15 @@ export interface FlareFetchOptions {
 export class CrawlerFetcher {
   private flare = new FlareClient();
   private store = new SessionStore();
+  /** Proxy to pass to FlareSolverr for the browser, e.g. socks5://host:port */
+  private flaresolverrProxy: { url: string } | undefined;
+
+  constructor() {
+    const proxyUrl = process.env.FLARESOLVERR_PROXY;
+    if (proxyUrl) {
+      this.flaresolverrProxy = { url: proxyUrl };
+    }
+  }
 
   /**
    * Fetch a page as plain text/HTML, transparently handling Cloudflare.
@@ -94,7 +103,7 @@ export class CrawlerFetcher {
     }
 
     // No usable session: solve via FlareSolverr and cache the result.
-    const solved = await this.flare.solve(url);
+    const solved = await this.flare.solve(url, undefined, this.flaresolverrProxy);
     if (isChallengePage(solved.html, solved.status)) {
       throw new Error(
         `FlareSolverr could not get past the Cloudflare challenge for ${url} (status ${solved.status}).`,
@@ -117,18 +126,26 @@ export class CrawlerFetcher {
     session: Session,
   ): Promise<string | null> {
     try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": session.userAgent,
-          Cookie: session.cookieHeader,
-          Accept:
-            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-        },
-      });
-      const html = await res.text();
-      if (isChallengePage(html, res.status)) return null;
-      return html;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+
+      try {
+        const res = await fetch(url, {
+          headers: {
+            "User-Agent": session.userAgent,
+            Cookie: session.cookieHeader,
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+          },
+          signal: controller.signal,
+        });
+        const html = await res.text();
+        if (isChallengePage(html, res.status)) return null;
+        return html;
+      } finally {
+        clearTimeout(timeout);
+      }
     } catch {
       return null;
     }
