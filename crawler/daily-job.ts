@@ -36,7 +36,7 @@ export interface DailyCrawlJobSummary {
 const DEFAULT_DAILY_JOB_CONFIG: DailyCrawlJobConfig = {
   forumId: 2387,
   pages: 3,
-  concurrentRequests: 3,
+  concurrentRequests: 1,
   retryAttempts: 3,
   retryDelayMs: 1000,
   recipientEmail: process.env.ADMIN_EMAIL ?? "",

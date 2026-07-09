@@ -8,7 +8,7 @@ services:
     networks:
       - proxy-net
     expose:
-      - "3010"
+      - "3000"
     labels:
       monic.enabled: "true"
       monic.check: "http"
@@ -16,7 +16,7 @@ services:
       monic.name: "advisor.bconf.com"
       redoproxy.enabled: "true"
       redoproxy.domain: "advisor.bconf.com"
-      redoproxy.port: 3010
+      redoproxy.port: 3000
     volumes:
       - ./prod.db:/app/data/prod.db
       - ./crawl.db:/app/data/crawl.db
@@ -40,6 +40,8 @@ services:
     labels:
       monic.enabled: "true"
       monic.name: "flaresolverr"
+    networks:
+      - proxy-net
     ports:
       - "127.0.0.1:8191:8191"
     environment:
