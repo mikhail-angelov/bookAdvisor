@@ -1,73 +1,86 @@
-import axios from 'axios';
-import { fetchUrl } from '../fetcher';
+import { CrawlerFetcher } from "../fetcher";
+import type { FlareSolveResult } from "../flare-client";
+import type { Session } from "../session-store";
 
-jest.mock('axios');
+class FakeFlareClient {
+  solve = jest.fn<Promise<FlareSolveResult>, [string]>();
+}
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+class FakeSessionStore {
+  private session: Session | null = null;
+  get = jest.fn(async () => this.session);
+  set = jest.fn(async (_domain: string, session: Session) => {
+    this.session = session;
+  });
+  invalidate = jest.fn(async () => {
+    this.session = null;
+  });
+}
 
-describe('fetchUrl', () => {
+describe("CrawlerFetcher", () => {
   beforeEach(() => {
-    delete process.env.FLARESOLVERR_URL;
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
-  it('does not treat Cloudflare challenge HTML as a successful page fetch', async () => {
-    mockedAxios.get.mockResolvedValue({
+  it("does not treat Cloudflare challenge HTML as a successful page fetch", async () => {
+    const flare = new FakeFlareClient();
+    const store = new FakeSessionStore();
+    const fetcher = new CrawlerFetcher(flare as any, store as any);
+
+    flare.solve.mockResolvedValue({
+      html: '<html><title>Just a moment...</title><body>cloudflare</body></html>',
+      cookieHeader: "cf_clearance=clearance-token",
+      userAgent: "resolved-agent",
       status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-      data: Buffer.from('<html><title>Just a moment...</title><body>cloudflare</body></html>'),
     });
 
-    const result = await fetchUrl('https://rutracker.org/forum/viewtopic.php?t=123', {
-      retryAttempts: 0,
-    });
-
-    expect(result.error).toBe('Blocked/challenge HTML received instead of target page');
-    expect(result.html).toBe('');
-  });
-
-  it('uses FlareSolverr cookies and user-agent for Rutracker requests', async () => {
-    process.env.FLARESOLVERR_URL = 'http://flaresolverr:8191/v1';
-
-    mockedAxios.post.mockResolvedValue({
-      status: 200,
-      data: {
-        status: 'ok',
-        solution: {
-          userAgent: 'resolved-agent',
-          cookies: [
-            { name: 'cf_clearance', value: 'clearance-token' },
-            { name: 'bb_session', value: 'session-token' },
-          ],
-        },
-      },
-    });
-
-    mockedAxios.get.mockResolvedValue({
-      status: 200,
-      headers: { 'content-type': 'text/html; charset=utf-8' },
-      data: Buffer.from('<html><body><a class="torTopic" href="viewtopic.php?t=123">Book</a></body></html>'),
-    });
-
-    const result = await fetchUrl('https://rutracker.org/forum/viewtopic.php?t=123', {
-      retryAttempts: 0,
-    });
-
-    expect(result.error).toBeUndefined();
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      'http://flaresolverr:8191/v1',
-      expect.objectContaining({
-        cmd: 'request.get',
-        url: 'https://rutracker.org/forum/viewtopic.php?t=123',
+    await expect(
+      fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=123", {
+        minDelayMs: 0,
+        jitterMs: 0,
       }),
-      expect.any(Object),
-    );
-    expect(mockedAxios.get).toHaveBeenCalledWith(
-      'https://rutracker.org/forum/viewtopic.php?t=123',
+    ).rejects.toThrow("FlareSolverr could not get past the Cloudflare challenge");
+  });
+
+  it("stores FlareSolverr cookies and reuses them for direct requests", async () => {
+    const flare = new FakeFlareClient();
+    const store = new FakeSessionStore();
+    const fetcher = new CrawlerFetcher(flare as any, store as any);
+
+    flare.solve.mockResolvedValue({
+      html: "<html><body>resolved page</body></html>",
+      cookieHeader: "cf_clearance=clearance-token; bb_session=session-token",
+      userAgent: "resolved-agent",
+      status: 200,
+    });
+
+    await expect(
+      fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=123", {
+        minDelayMs: 0,
+        jitterMs: 0,
+      }),
+    ).resolves.toContain("resolved page");
+
+    const directFetch = jest.fn().mockResolvedValue({
+      status: 200,
+      text: jest.fn().mockResolvedValue("<html><body>direct page</body></html>"),
+    });
+    jest.spyOn(global, "fetch").mockImplementation(directFetch as any);
+
+    await expect(
+      fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=456", {
+        minDelayMs: 0,
+        jitterMs: 0,
+      }),
+    ).resolves.toContain("direct page");
+
+    expect(flare.solve).toHaveBeenCalledTimes(1);
+    expect(directFetch).toHaveBeenCalledWith(
+      "https://rutracker.org/forum/viewtopic.php?t=456",
       expect.objectContaining({
         headers: expect.objectContaining({
-          Cookie: 'cf_clearance=clearance-token; bb_session=session-token',
-          'User-Agent': 'resolved-agent',
+          Cookie: "cf_clearance=clearance-token; bb_session=session-token",
+          "User-Agent": "resolved-agent",
         }),
       }),
     );

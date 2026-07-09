@@ -50,5 +50,8 @@ logs/
 
 # Cache
 .cache/
+
+# FlareSolverr session cache (data/flare-sessions.json)
+data/
 .agents
 .cline
