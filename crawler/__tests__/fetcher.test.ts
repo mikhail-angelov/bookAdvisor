@@ -19,6 +19,7 @@ class FakeSessionStore {
 
 describe("CrawlerFetcher", () => {
   beforeEach(() => {
+    delete process.env.FLARESOLVERR_PROXY;
     jest.restoreAllMocks();
   });
 
@@ -36,6 +37,33 @@ describe("CrawlerFetcher", () => {
 
     await expect(
       fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=123", {
+        minDelayMs: 0,
+        jitterMs: 0,
+      }),
+    ).rejects.toThrow("FlareSolverr could not get past the Cloudflare challenge");
+  });
+
+  it("does not treat Chromium network error HTML as a successful page fetch", async () => {
+    const flare = new FakeFlareClient();
+    const store = new FakeSessionStore();
+    const fetcher = new CrawlerFetcher(flare as any, store as any);
+
+    flare.solve.mockResolvedValue({
+      html: [
+        '<html dir="ltr" lang="en">',
+        "<head><title>rutracker.org</title></head>",
+        "<body>",
+        "<div id=\"main-frame-error\">This site can't be reached</div>",
+        "<div class=\"error-code\">ERR_CONNECTION_CLOSED</div>",
+        "</body></html>",
+      ].join(""),
+      cookieHeader: "cf_clearance=clearance-token",
+      userAgent: "resolved-agent",
+      status: 200,
+    });
+
+    await expect(
+      fetcher.fetchHtml("https://rutracker.org/forum/viewforum.php?f=2387", {
         minDelayMs: 0,
         jitterMs: 0,
       }),
@@ -83,6 +111,40 @@ describe("CrawlerFetcher", () => {
           "User-Agent": "resolved-agent",
         }),
       }),
+    );
+  });
+
+  it("keeps proxy-enabled requests inside FlareSolverr instead of direct fetching", async () => {
+    process.env.FLARESOLVERR_PROXY = "socks5://host.docker.internal:1080";
+    const flare = new FakeFlareClient();
+    const store = new FakeSessionStore();
+    const fetcher = new CrawlerFetcher(flare as any, store as any);
+
+    flare.solve.mockResolvedValue({
+      html: "<html><body>proxied page</body></html>",
+      cookieHeader: "cf_clearance=clearance-token",
+      userAgent: "resolved-agent",
+      status: 200,
+    });
+
+    const directFetch = jest.fn();
+    jest.spyOn(global, "fetch").mockImplementation(directFetch as any);
+
+    await fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=123", {
+      minDelayMs: 0,
+      jitterMs: 0,
+    });
+    await fetcher.fetchHtml("https://rutracker.org/forum/viewtopic.php?t=456", {
+      minDelayMs: 0,
+      jitterMs: 0,
+    });
+
+    expect(directFetch).not.toHaveBeenCalled();
+    expect(flare.solve).toHaveBeenCalledTimes(2);
+    expect(flare.solve).toHaveBeenCalledWith(
+      "https://rutracker.org/forum/viewtopic.php?t=456",
+      undefined,
+      { url: "socks5://host.docker.internal:1080" },
     );
   });
 });

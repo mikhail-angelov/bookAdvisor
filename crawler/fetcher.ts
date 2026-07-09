@@ -36,9 +36,15 @@ const CHALLENGE_MARKERS = [
   "cf-browser-verification",
   "cf_chl_",
   "challenges.cloudflare.com",
-  "cloudflare",
   "ddos-guard",
+  "error-code",
+  "err_",
+  "main-frame-error",
   "just a moment",
+  "site can't be reached",
+  "site can’t be reached",
+  "the chromium authors",
+  "this site can",
 ];
 
 function isRutrackerUrl(url: string): boolean {
@@ -149,7 +155,8 @@ export class CrawlerFetcher {
       await jitter(minDelayMs, jitterMs);
     }
 
-    let session = forceResolve ? null : await this.store.get(domain);
+    const canUseDirectFetch = !this.flaresolverrProxy;
+    let session = forceResolve || !canUseDirectFetch ? null : await this.store.get(domain);
 
     if (session) {
       const direct = await this.tryDirectFetch(url, session);
