@@ -1,12 +1,11 @@
 /**
- * HTTP fetcher with retry logic and windows-1251 encoding support.
+ * HTTP fetcher with retry logic.
  *
  * For rutracker.org URLs, uses a self-hosted FlareSolverr instance to
  * bypass Cloudflare. For other domains, falls back to plain axios.
  */
 
 import axios from "axios";
-import * as iconv from "iconv-lite";
 import { FlareClient } from "./flare-client";
 import { SessionStore, type Session } from "./session-store";
 import { type FetchResult } from "./types";
@@ -65,42 +64,8 @@ function domainOf(url: string): string {
   return new URL(url).hostname;
 }
 
-function decodeBuffer(buffer: Buffer, fallbackEncoding = "utf-8"): {
-  html: string;
-  encoding: string;
-} {
-  const sniff = buffer.slice(0, 4096).toString("latin1");
-  const metaCharsetMatch =
-    sniff.match(/<meta[^>]+charset=["']?\s*([^"'\s;>]+)/i) ??
-    sniff.match(/charset=["']?\s*([^"'\s;>]+)/i);
-  const metaCharset = metaCharsetMatch?.[1]?.toLowerCase() ?? "";
-  const encoding = iconv.encodingExists(metaCharset)
-    ? metaCharset
-    : fallbackEncoding;
-
-  return {
-    html: iconv.decode(buffer, encoding),
-    encoding,
-  };
-}
-
-function decodeHtmlString(html: string, fallbackEncoding = "windows-1251"): {
-  html: string;
-  encoding: string;
-} {
-  const sniff = html.slice(0, 4096);
-  const metaCharsetMatch =
-    sniff.match(/<meta[^>]+charset=["']?\s*([^"'\s;>]+)/i) ??
-    sniff.match(/charset=["']?\s*([^"'\s;>]+)/i);
-  const metaCharset = metaCharsetMatch?.[1]?.toLowerCase() ?? "";
-  const encoding = iconv.encodingExists(metaCharset)
-    ? metaCharset
-    : fallbackEncoding;
-
-  return {
-    html: iconv.decode(Buffer.from(html, "latin1"), encoding),
-    encoding,
-  };
+function bufferToRawString(buffer: Buffer): string {
+  return buffer.toString("latin1");
 }
 
 function jitter(baseMs: number, spreadMs: number): Promise<void> {
@@ -202,9 +167,9 @@ export class CrawlerFetcher {
           },
           signal: controller.signal,
         });
-        const html = await res.text();
-        if (isChallengePage(html, res.status)) return null;
-        return html;
+        const rawHtml = bufferToRawString(Buffer.from(await res.arrayBuffer()));
+        if (isChallengePage(rawHtml, res.status)) return null;
+        return rawHtml;
       } finally {
         clearTimeout(timeout);
       }
@@ -225,7 +190,7 @@ export function fetchHtml(
 }
 
 /**
- * Fetch a URL with retry logic and windows-1251 encoding detection.
+ * Fetch a URL with retry logic.
  * Uses the FlareSolverr-backed CrawlerFetcher for rutracker.org URLs
  * and falls back to axios for everything else.
  */
@@ -258,14 +223,12 @@ async function fetchWithFlareSolverr(
         throw new Error(CHALLENGE_ERROR);
       }
 
-      const decoded = decodeHtmlString(html);
-
       return {
         url,
-        html: decoded.html,
+        html,
         status: 200,
-        contentType: `text/html; charset=${decoded.encoding}`,
-        encoding: decoded.encoding,
+        contentType: "text/html; source=flaresolverr-or-direct",
+        encoding: "crawler-raw",
       };
     } catch (err: any) {
       if (attempt < retryAttempts) {
@@ -308,7 +271,7 @@ async function fetchWithAxios(
       });
 
       const contentType = response.headers["content-type"] || "";
-      const decoded = decodeBuffer(response.data);
+      const rawHtml = bufferToRawString(response.data);
 
       if (response.status >= 400) {
         throw new Error(`HTTP ${response.status}`);
@@ -316,10 +279,10 @@ async function fetchWithAxios(
 
       return {
         url,
-        html: decoded.html,
+        html: rawHtml,
         status: response.status,
         contentType,
-        encoding: decoded.encoding,
+        encoding: "raw-latin1",
       };
     } catch (error: any) {
       lastError = error;

@@ -13,28 +13,51 @@ import { CrawlType } from "./types";
 import { NewBook } from "../db/schema";
 import type { Crawl } from "../db/schema";
 
-/**
- * Ensure HTML string is properly decoded.
- * If the crawl was stored with windows-1251 codePage but the text looks like
- * it was mis-decoded (contains replacement characters), attempt re-decoding
- * by treating the string as latin1 bytes and re-decoding with iconv.
- */
-function getDecodedHtml(crawl: Crawl): string {
-  const html = crawl.htmlBody ?? "";
+function sniffHtmlEncoding(html: string, fallbackEncoding = "windows-1251"): string {
+  const sniff = html.slice(0, 4096);
+  const metaCharsetMatch =
+    sniff.match(/<meta[^>]+charset=["']?\s*([^"'\s;>]+)/i) ??
+    sniff.match(/charset=["']?\s*([^"'\s;>]+)/i);
+  const metaCharset = metaCharsetMatch?.[1]?.toLowerCase() ?? "";
+
+  return iconv.encodingExists(metaCharset) ? metaCharset : fallbackEncoding;
+}
+
+function isAlreadyDecoded(html: string): boolean {
+  return /[\u0400-\u04FF]/.test(html);
+}
+
+function looksLikeRawBytes(html: string): boolean {
+  return /[\u0080-\u00FF]/.test(html);
+}
+
+export function decodeStoredHtml(
+  html: string,
+  codePage?: string | null,
+  fallbackEncoding = "windows-1251",
+): string {
   if (!html) return html;
+  if (isAlreadyDecoded(html)) return html;
 
-  // If codePage is windows-1251 and the HTML contains replacement chars (U+FFFD or ?)
-  // it was likely stored with wrong encoding — re-decode from latin1 bytes
-  if (crawl.codePage === "windows-1251" && html.includes("\uFFFD")) {
-    try {
-      const bytes = Buffer.from(html, "latin1");
-      return iconv.decode(bytes, "windows-1251");
-    } catch {
-      return html;
-    }
+  const shouldDecode =
+    codePage === "raw-latin1" ||
+    codePage === "crawler-raw" ||
+    codePage === "windows-1251" ||
+    html.includes("\uFFFD") ||
+    looksLikeRawBytes(html);
+
+  if (!shouldDecode) return html;
+
+  try {
+    const encoding = sniffHtmlEncoding(html, fallbackEncoding);
+    return iconv.decode(Buffer.from(html, "latin1"), encoding);
+  } catch {
+    return html;
   }
+}
 
-  return html;
+function getDecodedHtml(crawl: Crawl): string {
+  return decodeStoredHtml(crawl.htmlBody ?? "", crawl.codePage);
 }
 
 const BATCH_SIZE = 300;
@@ -168,7 +191,7 @@ export async function processDetailCrawls(
       const topicIdMatch = crawl.url.match(/t=(\d+)/);
       const topicId = topicIdMatch ? topicIdMatch[1] : undefined;
 
-      const details = detailParser.parse(crawl.htmlBody, topicId);
+      const details = detailParser.parse(getDecodedHtml(crawl), topicId);
 
       // Add URL to the details for updating
       detailUpdates.push({
