@@ -4,6 +4,7 @@
  * Command-line interface for the standalone crawler
  */
 
+import "dotenv/config";
 import { main } from './main';
 import { processCrawls } from './parser-service';
 import { runDailyCrawlJob } from './daily-job';

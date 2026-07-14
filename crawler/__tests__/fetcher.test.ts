@@ -20,7 +20,7 @@ class FakeSessionStore {
 
 describe("CrawlerFetcher", () => {
   beforeEach(() => {
-    delete process.env.FLARESOLVERR_PROXY;
+    delete process.env.FLARESOLVERR_PROXY_ENABLED;
     jest.restoreAllMocks();
   });
 
@@ -142,7 +142,7 @@ describe("CrawlerFetcher", () => {
   });
 
   it("keeps proxy-enabled requests inside FlareSolverr instead of direct fetching", async () => {
-    process.env.FLARESOLVERR_PROXY = "socks5://host.docker.internal:1080";
+    process.env.FLARESOLVERR_PROXY_ENABLED = "true";
     const flare = new FakeFlareClient();
     const store = new FakeSessionStore();
     const fetcher = new CrawlerFetcher(flare as any, store as any);
@@ -170,8 +170,6 @@ describe("CrawlerFetcher", () => {
     expect(flare.solve).toHaveBeenCalledTimes(2);
     expect(flare.solve).toHaveBeenCalledWith(
       "https://rutracker.org/forum/viewtopic.php?t=456",
-      undefined,
-      { url: "socks5://host.docker.internal:1080" },
     );
   });
 });

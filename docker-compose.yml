@@ -45,7 +45,11 @@ services:
     ports:
       - "127.0.0.1:8191:8191"
     environment:
-      - LOG_LEVEL=info
+      # FlareSolverr logs proxy credentials in request details at info level.
+      - LOG_LEVEL=warning
+      - PROXY_URL=${FLARESOLVERR_PROXY_URL:-}
+      - PROXY_USERNAME=${FLARESOLVERR_PROXY_USERNAME:-}
+      - PROXY_PASSWORD=${FLARESOLVERR_PROXY_PASSWORD:-}
     restart: unless-stopped
     logging:
       driver: "json-file"

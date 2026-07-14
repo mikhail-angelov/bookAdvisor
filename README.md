@@ -90,6 +90,9 @@ bookAdvisor/
 | `POST_USER` | SMTP username |
 | `POST_PASS` | SMTP password |
 | `SMTP_FROM` | From email address |
+| `FLARESOLVERR_PROXY_ENABLED` | Set to `true` when FlareSolverr is configured to use a proxy |
+| `FLARESOLVERR_PROXY_URL` | Proxy URL used by FlareSolverr, without embedded credentials |
+| `FLARESOLVERR_PROXY_USERNAME` / `FLARESOLVERR_PROXY_PASSWORD` | Proxy credentials passed to FlareSolverr at startup |
 
 ## Crawler Commands
 

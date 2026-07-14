@@ -90,17 +90,15 @@ export interface FlareFetchOptions {
 export class CrawlerFetcher {
   private flare: FlareClient;
   private store: SessionStore;
-  /** Proxy to pass to FlareSolverr for the browser, e.g. socks5://host:port */
-  private flaresolverrProxy: { url: string } | undefined;
+  /** Whether FlareSolverr itself has been configured to use a proxy. */
+  private usesFlareSolverrProxy: boolean;
 
   constructor(flare = new FlareClient(), store = new SessionStore()) {
     this.flare = flare;
     this.store = store;
 
-    const proxyUrl = process.env.FLARESOLVERR_PROXY;
-    if (proxyUrl) {
-      this.flaresolverrProxy = { url: proxyUrl };
-    }
+    this.usesFlareSolverrProxy =
+      process.env.FLARESOLVERR_PROXY_ENABLED === "true";
   }
 
   /**
@@ -120,7 +118,7 @@ export class CrawlerFetcher {
       await jitter(minDelayMs, jitterMs);
     }
 
-    const canUseDirectFetch = !this.flaresolverrProxy;
+    const canUseDirectFetch = !this.usesFlareSolverrProxy;
     let session = forceResolve || !canUseDirectFetch ? null : await this.store.get(domain);
 
     if (session) {
@@ -130,7 +128,7 @@ export class CrawlerFetcher {
       session = null;
     }
 
-    const solved = await this.flare.solve(url, undefined, this.flaresolverrProxy);
+    const solved = await this.flare.solve(url);
     if (isChallengePage(solved.html, solved.status)) {
       throw new Error(
         `FlareSolverr could not get past the Cloudflare challenge for ${url} (status ${solved.status}).`,
